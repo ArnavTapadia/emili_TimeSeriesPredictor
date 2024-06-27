@@ -17,6 +17,8 @@ from datetime import datetime
 from copy import deepcopy
 import cProfile
 import pstats
+import os
+import json
 
 class EmoTunnel(DetectMiniXceptionFER): # video pipeline for real-time FER visualizer
     def __init__(self, start_time, dims, offsets, speed=25):
@@ -36,6 +38,13 @@ class EmoTunnel(DetectMiniXceptionFER): # video pipeline for real-time FER visua
         self.last_bin_mean = np.full(7,1e5) # mean scores for the most recent bin
         #self.signal = signal
         #self.draw = pr.TunnelBoxes(self.time_series, self.colors, True) # override the default draw method
+
+        # Set up log directory and file
+        log_dir = "time_series_predictor/Data"
+        os.makedirs(log_dir, exist_ok=True)
+        log_file_name = f"emotion_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
+        self.log_file_path = os.path.join(log_dir, log_file_name)
+        self.log_file = open(self.log_file_path, 'a')
 
     def get_current_frame(self):
         with self.frame_lock:  # Ensure exclusive access to current_frame
@@ -106,16 +115,39 @@ class EmoTunnel(DetectMiniXceptionFER): # video pipeline for real-time FER visua
                     "scores": (box.scores.tolist())[0]  # 7-vector of emotion scores, converted from np.array to list
                 }
                 #emotion_queue.put(emotion_data)
+                self.log_file.write(json.dumps(emotion_data) + "\n")  # Write emotion data to log file
+                self.log_file.flush()  # Ensure data is written immediately
                 return emotion_data
         return None # no large faces found
-                #new_data_event.set()  # Tell the other threads that new data is available
-                
- #   def __del__(self): # no log file, not needed
- #       self.log_file.close()  # Close the file when the instance is deleted
- #       print("Log file closed.")
+                #new_data_event.set()  # Tell the other threads that new data is available              
+
+    def close_logFile(self):
+        if hasattr(self, 'log_file') and not self.log_file.closed:
+            self.log_file.close()
+            print(f"Raw emotion scores written to {self.log_file_path}.")
+            convert_jsonl_to_json(self.log_file_path, self.log_file_path[:-5] + ".json")
+
+#    def __del__(self): # no log file, not needed
+#        self.log_file.close()  # Close the file when the instance is deleted
+#        print("Log file closed.")
     
 def time_since(start_time):
     return int((time.time() - start_time) * 1000) # milliseconds since start of session
+
+def convert_jsonl_to_json(jsonl_file, json_file):
+    """
+    Converts a JSON Lines (.jsonl) file to a standard JSON (.json) file.
+    
+    Parameters:
+    - jsonl_file (str): Path to the input JSON Lines file.
+    - json_file (str): Path to the output JSON file.
+    """
+    with open(jsonl_file, 'r') as f_in:
+        with open(json_file, 'w') as f_out:
+            data = [json.loads(line.strip()) for line in f_in]
+            json.dump(data, f_out, indent=4)
+    
+    print(f"Converted {jsonl_file} to {json_file}.")
 
 if __name__ == "__main__":
 
@@ -191,6 +223,7 @@ if __name__ == "__main__":
     print("Quitting video thread...")
     video_thread.wait()  # Wait for the thread to finish
     print("Session ended.")
+    pipeline.close_logFile()
     profiler.disable()
 
     # Print profiling stats
