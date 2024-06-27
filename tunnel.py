@@ -148,6 +148,7 @@ def convert_jsonl_to_json(jsonl_file, json_file):
             json.dump(data, f_out, indent=4)
     
     print(f"Converted {jsonl_file} to {json_file}.")
+    os.remove(jsonl_file)
 
 if __name__ == "__main__":
 
