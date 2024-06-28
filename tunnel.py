@@ -42,7 +42,7 @@ class EmoTunnel(DetectMiniXceptionFER): # video pipeline for real-time FER visua
         # Set up log directory and file
         log_dir = "time_series_predictor/Data"
         os.makedirs(log_dir, exist_ok=True)
-        log_file_name = f"emotion_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
+        log_file_name = f"emotion_log_{start_time_str}.jsonl"
         self.log_file_path = os.path.join(log_dir, log_file_name)
         self.log_file = open(self.log_file_path, 'a')
 
