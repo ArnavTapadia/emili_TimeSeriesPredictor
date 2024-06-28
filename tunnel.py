@@ -125,7 +125,7 @@ class EmoTunnel(DetectMiniXceptionFER): # video pipeline for real-time FER visua
         if hasattr(self, 'log_file') and not self.log_file.closed:
             self.log_file.close()
             print(f"Raw emotion scores written to {self.log_file_path}.")
-            convert_jsonl_to_json(self.log_file_path, self.log_file_path[:-5] + ".json")
+            convert_jsonl_to_json(self.log_file_path, self.log_file_path[:-5] + "json")
 
 #    def __del__(self): # no log file, not needed
 #        self.log_file.close()  # Close the file when the instance is deleted
