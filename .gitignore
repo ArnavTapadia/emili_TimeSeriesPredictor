@@ -2,3 +2,4 @@ venv/
 tts_audio/
 transcript/
 snapshot/
+.DS_Store
