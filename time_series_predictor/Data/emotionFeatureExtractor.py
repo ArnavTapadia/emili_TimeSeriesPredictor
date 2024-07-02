@@ -46,5 +46,23 @@ class emotionFeatureExtractor:
     
     
 
-    def non_overlappingSegmentData(data_array, segmentLength = 600,stride = 600):
-        raise NotImplementedError
+    def segmented_data(data_array, segment_length = 600,stride = 600):
+        '''
+        Method #1 for training model:
+        Segments data so that only the previous 1 minute (600 readings) are used to make a guess for the next 1 minute
+        data_array should be an np.matrix of size ~100xmax(logfilelength)x7 (100 = #time series')
+        '''
+
+        X = Y = []
+        num_files, max_length, num_features = data_array.shape
+
+        for nTimeSeries in range(num_files):
+            file_data = data_array[nTimeSeries]
+        for start in range(0, max_length - segment_length, stride):
+            end = start + segment_length
+            if end + segment_length <= max_length:
+                X.append(file_data[start:end])
+                Y.append(file_data[end:end + segment_length])
+            #Note some of X and Y are going to be mostly 0's rather than vectors
+            #X and Y should have size ~ # of minutes of data x600x7
+        return np.array(X), np.array(Y)
