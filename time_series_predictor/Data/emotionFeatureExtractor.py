@@ -36,4 +36,5 @@ class emotionFeatureExtractor:
     
     
 
-        
+    def non_overlappingSegmentData(data_array, segmentLength = 600,stride = 600):
+        raise NotImplementedError
