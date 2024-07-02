@@ -5,7 +5,7 @@ import os
 
 
 class emotionFeatureExtractor:
-    def __init__(self, log_dir = 'time_series_predictor/Data', segment_length=600, stride=600, target_freq='100L'):
+    def __init__(self, log_dir = 'time_series_predictor/Data', segment_length=600, stride=600, target_freq='100ms'):
         self.log_dir = log_dir
         self.segment_length = segment_length
         self.stride = stride
@@ -26,12 +26,20 @@ class emotionFeatureExtractor:
         return all_data
     
     def resample_data(self, file_data): #resampling the data linearly so we have 10 readings per second
-        #'100L' translates to 10 Hz frequency
+        #'100ms' translates to 10 Hz frequency
         df = pd.DataFrame(file_data)
+        df = df[['time', 'scores']] #only care about these 2
         df['time'] = pd.to_datetime(df['time'], unit='ms')
-        df.set_index('time', inplace=True)
-        df = df.resample(self.target_freq).interpolate(method='linear')
-        scores_array = np.stack(df['scores'].apply(lambda x: np.array(x)).values)
+        df.set_index('time', inplace=True) #time is now the index
+
+        # Expand the 'scores' column into multiple columns
+        scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index)
+
+        # Resample and interpolate
+        resampled_scores_df = scores_df.resample(self.target_freq).interpolate(method='linear')
+        
+        # Convert back to numpy array
+        scores_array = resampled_scores_df.to_numpy()
 
         return scores_array
     
@@ -42,8 +50,8 @@ class emotionFeatureExtractor:
         data_array should be an np.matrix of size ~100xmax(logfilelength)x7 (100 = #time series')
         '''
         
-        all_data = self.read_emotion_logs(self.log_dir)
-        resampled_data = [self.resample_data(file_data, self.target_freq) for file_data in all_data]
+        all_data = self.read_emotion_logs()
+        resampled_data = [self.resample_data(file_data) for file_data in all_data]
         
         num_files = len(resampled_data)
         num_features = resampled_data[0].shape[1]  # Number of emotion scores -- should be 7
@@ -72,6 +80,6 @@ class emotionFeatureExtractor:
 
 
 
-    #testing functions:
+#testing functions:
 extractor = emotionFeatureExtractor()
 XData, YData = extractor.prepare_and_segment_data()
