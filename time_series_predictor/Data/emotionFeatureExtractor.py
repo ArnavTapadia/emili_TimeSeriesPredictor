@@ -18,9 +18,9 @@ class emotionFeatureExtractor:
         each time series contains a log of the emotion_data with ~ 10 readings per second
         '''
         all_data = []
-        for file_name in os.listdir(log_dir): #iterating through each log file
+        for file_name in os.listdir(self.log_dir): #iterating through each log file
             if file_name.endswith('.json'):
-                with open(os.path.join(log_dir, file_name), 'r') as file:
+                with open(os.path.join(self.log_dir, file_name), 'r') as file:
                     data = json.load(file)
                     all_data.append(data) #all_data should be of length n and each element is a full time series of emotion data
         return all_data
@@ -73,3 +73,5 @@ class emotionFeatureExtractor:
 
 
     #testing functions:
+extractor = emotionFeatureExtractor()
+XData, YData = extractor.prepare_and_segment_data()
