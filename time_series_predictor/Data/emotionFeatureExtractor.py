@@ -27,19 +27,20 @@ class emotionFeatureExtractor:
     
     def resample_data(self, file_data): #resampling the data linearly so we have 10 readings per second
         #'100ms' translates to 10 Hz frequency
-        df = pd.DataFrame(file_data)
+        df = pd.DataFrame(file_data) #current data is sampled at ~9-12 readings per second - varies
         df = df[['time', 'scores']] #only care about these 2
         df['time'] = pd.to_datetime(df['time'], unit='ms')
         df.set_index('time', inplace=True) #time is now the index
 
         # Expand the 'scores' column into multiple columns
-        scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index)
+        scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
 
-        # Resample and interpolate
-        resampled_scores_df = scores_df.resample(self.target_freq).interpolate(method='linear')
-        
-        # Convert back to numpy array
-        scores_array = resampled_scores_df.to_numpy()
+        # Resample and interpolate TO FIX
+        # resampled_scores_df = scores_df.resample(self.target_freq).interpolate(method='linear')
+
+        # # Convert back to numpy array
+        # scores_array = resampled_scores_df.to_numpy()
+        scores_array = scores_df.to_numpy()
 
         return scores_array
     
