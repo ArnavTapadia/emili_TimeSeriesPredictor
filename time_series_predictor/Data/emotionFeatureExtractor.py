@@ -41,6 +41,7 @@ class emotionFeatureExtractor:
         # # Convert back to numpy array
         # scores_array = resampled_scores_df.to_numpy()
         scores_array = scores_df.to_numpy()
+        scores_array = scores_array/np.sum(scores_array,axis=1)[:,np.newaxis] #normalizing to 0-1
 
         return scores_array
     
