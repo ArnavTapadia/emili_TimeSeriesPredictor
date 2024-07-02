@@ -35,6 +35,7 @@ class emotionFeatureExtractor:
         # Expand the 'scores' column into multiple columns
         scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
 
+        #TODO: Fix resampling
         # Resample and interpolate TO FIX
         # resampled_scores_df = scores_df.resample(self.target_freq).interpolate(method='linear')
 
