@@ -19,6 +19,16 @@ class emotionFeatureExtractor:
                     all_data.append(data) #all_data should be of length n and each element is a full time series of emotion data
         return all_data
     
+    def resample_data(file_data, target_freq='100L'): #resampling the data linearly so we have 10 readings per second
+        #'100L' translates to 10 Hz frequency
+        df = pd.DataFrame(file_data)
+        df['time'] = pd.to_datetime(df['time'], unit='ms')
+        df.set_index('time', inplace=True)
+        df = df.resample(target_freq).interpolate(method='linear')
+        scores_array = np.stack(df['scores'].apply(lambda x: np.array(x)).values)
+
+        return scores_array
+
     def prepare_data(all_data): #returns matrix of data
         max_length = max(len(file_data) for file_data in all_data) #takes the maximum log length
         num_files = len(all_data) #should be = #log files
