@@ -66,3 +66,7 @@ class emotionFeatureExtractor:
             #Note some of X and Y are going to be mostly 0's rather than vectors
             #X and Y should have size ~ # of minutes of data x600x7
         return np.array(X), np.array(Y)
+    
+
+    def train_val_testing_split(X,Y):
+        raise NotImplementedError
