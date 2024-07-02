@@ -38,12 +38,39 @@ class emotionFeatureExtractor:
         data_array = np.zeros((num_files, max_length, num_features)) #should be 100xmax(logfilelength)x7
 
         for i, file_data in enumerate(all_data):
-            df = pd.DataFrame(file_data)
             scores_array = np.array(df['scores'].tolist())
             data_array[i, :scores_array.shape[0], :] = scores_array
 
         return data_array
     
+    def prepare_and_segment_data(log_dir = 'time_series_predictor/Data', segment_length=600, stride=600, target_freq='100L'):
+        '''
+        Method #1 for training model:
+        Segments data so that only the previous 1 minute (600 readings) are used to make a guess for the next 1 minute
+        data_array should be an np.matrix of size ~100xmax(logfilelength)x7 (100 = #time series')
+        '''
+        
+        all_data = read_emotion_logs(log_dir)
+        resampled_data = [resample_data(file_data, target_freq) for file_data in all_data]
+        
+        num_files = len(resampled_data)
+        num_features = resampled_data[0].shape[1]  # Number of emotion scores -- should be 7
+        max_length = max(file_data.shape[0] for file_data in resampled_data) #maximum time series length
+        
+        X, Y = [], []
+
+        for file_data in resampled_data:
+            for start in range(0, file_data.shape[0] - segment_length, stride):
+                end = start + segment_length
+                if end + segment_length <= file_data.shape[0]:
+                    X.append(file_data[start:end])
+                    Y.append(file_data[end:end + segment_length])
+                    #Note some of X and Y are going to be mostly 0's rather than vectors
+                    #X and Y should have size ~ # of minutes of data x600x7
+        X = np.array(X)
+        Y = np.array(Y)
+
+        return X, Y
     
 
     def segmented_data(data_array, segment_length = 600,stride = 600):
@@ -70,3 +97,8 @@ class emotionFeatureExtractor:
 
     def train_val_testing_split(X,Y):
         raise NotImplementedError
+    
+
+
+
+    #testing functions:
