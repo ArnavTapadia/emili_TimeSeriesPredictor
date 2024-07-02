@@ -5,8 +5,14 @@ import os
 
 
 class emotionFeatureExtractor:
-    
-    def read_emotion_logs(log_dir = 'time_series_predictor/Data'):
+    def __init__(self, log_dir = 'time_series_predictor/Data', segment_length=600, stride=600, target_freq='100L'):
+        self.log_dir = log_dir
+        self.segment_length = segment_length
+        self.stride = stride
+        self.target_freq = target_freq
+
+
+    def read_emotion_logs(self):
         '''
         log_dir has n (= 100) time series of varying length between 1-10 minutes long
         each time series contains a log of the emotion_data with ~ 10 readings per second
@@ -19,39 +25,25 @@ class emotionFeatureExtractor:
                     all_data.append(data) #all_data should be of length n and each element is a full time series of emotion data
         return all_data
     
-    def resample_data(file_data, target_freq='100L'): #resampling the data linearly so we have 10 readings per second
+    def resample_data(self, file_data): #resampling the data linearly so we have 10 readings per second
         #'100L' translates to 10 Hz frequency
         df = pd.DataFrame(file_data)
         df['time'] = pd.to_datetime(df['time'], unit='ms')
         df.set_index('time', inplace=True)
-        df = df.resample(target_freq).interpolate(method='linear')
+        df = df.resample(self.target_freq).interpolate(method='linear')
         scores_array = np.stack(df['scores'].apply(lambda x: np.array(x)).values)
 
         return scores_array
-
-    def prepare_data(all_data): #returns matrix of data
-        max_length = max(len(file_data) for file_data in all_data) #takes the maximum log length
-        num_files = len(all_data) #should be = #log files
-        num_features = 7  # Number of emotion scores #length fo emotion vector
-
-        # Initialize a 3D array with shape (num_files, max_length, num_features)
-        data_array = np.zeros((num_files, max_length, num_features)) #should be 100xmax(logfilelength)x7
-
-        for i, file_data in enumerate(all_data):
-            scores_array = np.array(df['scores'].tolist())
-            data_array[i, :scores_array.shape[0], :] = scores_array
-
-        return data_array
     
-    def prepare_and_segment_data(log_dir = 'time_series_predictor/Data', segment_length=600, stride=600, target_freq='100L'):
+    def prepare_and_segment_data(self):
         '''
         Method #1 for training model:
         Segments data so that only the previous 1 minute (600 readings) are used to make a guess for the next 1 minute
         data_array should be an np.matrix of size ~100xmax(logfilelength)x7 (100 = #time series')
         '''
         
-        all_data = read_emotion_logs(log_dir)
-        resampled_data = [resample_data(file_data, target_freq) for file_data in all_data]
+        all_data = self.read_emotion_logs(self.log_dir)
+        resampled_data = [self.resample_data(file_data, self.target_freq) for file_data in all_data]
         
         num_files = len(resampled_data)
         num_features = resampled_data[0].shape[1]  # Number of emotion scores -- should be 7
@@ -60,11 +52,11 @@ class emotionFeatureExtractor:
         X, Y = [], []
 
         for file_data in resampled_data:
-            for start in range(0, file_data.shape[0] - segment_length, stride):
-                end = start + segment_length
-                if end + segment_length <= file_data.shape[0]:
+            for start in range(0, file_data.shape[0] - self.segment_length, self.stride):
+                end = start + self.segment_length
+                if end + self.segment_length <= file_data.shape[0]:
                     X.append(file_data[start:end])
-                    Y.append(file_data[end:end + segment_length])
+                    Y.append(file_data[end:end + self.segment_length])
                     #Note some of X and Y are going to be mostly 0's rather than vectors
                     #X and Y should have size ~ # of minutes of data x600x7
         X = np.array(X)
@@ -72,30 +64,9 @@ class emotionFeatureExtractor:
 
         return X, Y
     
-
-    def segmented_data(data_array, segment_length = 600,stride = 600):
-        '''
-        Method #1 for training model:
-        Segments data so that only the previous 1 minute (600 readings) are used to make a guess for the next 1 minute
-        data_array should be an np.matrix of size ~100xmax(logfilelength)x7 (100 = #time series')
-        '''
-
-        X = Y = []
-        num_files, max_length, num_features = data_array.shape
-
-        for nTimeSeries in range(num_files):
-            file_data = data_array[nTimeSeries]
-        for start in range(0, max_length - segment_length, stride):
-            end = start + segment_length
-            if end + segment_length <= max_length:
-                X.append(file_data[start:end])
-                Y.append(file_data[end:end + segment_length])
-            #Note some of X and Y are going to be mostly 0's rather than vectors
-            #X and Y should have size ~ # of minutes of data x600x7
-        return np.array(X), np.array(Y)
     
 
-    def train_val_testing_split(X,Y):
+    def train_val_testing_split(self,X,Y):
         raise NotImplementedError
     
 
