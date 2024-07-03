@@ -58,14 +58,15 @@ class emotionFeatureExtractor:
         all_data = self.read_emotion_logs()
         resampled_data = [self.resample_data(file_data) for file_data in all_data]
         
-        num_files = len(resampled_data)
-        num_features = resampled_data[0].shape[1]  # Number of emotion scores -- should be 7
-        max_length = max(file_data.shape[0] for file_data in resampled_data) #maximum time series length
+        #for testing 3 lines below:
+        # num_files = len(resampled_data)
+        # num_features = resampled_data[0].shape[1]  # Number of emotion scores -- should be 7
+        # max_length = max(file_data.shape[0] for file_data in resampled_data) #maximum time series length
         
         X, Y = [], []
 
         for file_data in resampled_data:
-            for start in range(0, file_data.shape[0] - self.segment_length, self.stride):
+            for start in range(0, file_data.shape[0] - self.segment_length, self.stride): #increments of length 600(segment length), with the last 600 for the label
                 end = start + self.segment_length
                 if end + self.segment_length <= file_data.shape[0]:
                     X.append(file_data[start:end])
@@ -74,17 +75,14 @@ class emotionFeatureExtractor:
                     #X and Y should have size ~ # of minutes of data x600x7
         X = np.array(X)
         Y = np.array(Y)
-
+        #for each X[i], the corresponding predicted label is Y[i]
+        #X.shape[0] ~ total number of minutes of data (slightly less)
+        #Some data gets unused (if the time series was not a whole number of minutes long)
+        #can be adjusted by changing stride to have overlapping segments
         return X, Y
     
     
 
     def train_val_testing_split(self,X,Y):
         raise NotImplementedError
-    
 
-
-
-#testing functions:
-extractor = emotionFeatureExtractor()
-XData, YData = extractor.prepare_and_segment_data()
