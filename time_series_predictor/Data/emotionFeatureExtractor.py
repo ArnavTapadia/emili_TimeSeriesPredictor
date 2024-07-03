@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import json
 import os
+from sklearn.model_selection import train_test_split
 
 
 class emotionFeatureExtractor:
@@ -83,7 +84,25 @@ class emotionFeatureExtractor:
     
     
 
-    def train_val_testing_split(self,X,Y):
-        raise NotImplementedError
+    def train_val_testing_split(self,X,Y, split = [0.8,0.1,0.1]):
+        n = X.shape[0]
+        #randomly select 80% for training, 10% for validation, 10% for testing
+        assert sum(split == 1.0) and split[0] > 0 and split [1] >= 0 and split[2] > 0
+
+        # First split to create training and temp sets
+        xTrain, xTemp, yTrain, yTemp = train_test_split(X, Y, test_size=split[1] + split[2])
+
+        # Calculate validation and test split size proportionally from the temp set
+        val_test_ratio = split[1] / (split[1] + split[2])
+
+        #split again
+        xVal, xTest, yVal, yTest = train_test_split(xTemp, yTemp, test_size=1-val_test_ratio + split[2])
+
+
+        return xTrain, yTrain, xVal, yVal, xTest, yTest
 
     #TODO: write feature extraction for padding and masking method
+
+extractor = emotionFeatureExtractor()
+XData,YData = extractor.prepare_and_segment_data()
+xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData)
