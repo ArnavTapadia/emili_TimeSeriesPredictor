@@ -114,7 +114,6 @@ class emotionFeatureExtractor:
 
     #TODO: write feature extraction for padding and masking method
 
-extractor = emotionFeatureExtractor()
-XData,YData = extractor.prepare_and_segment_data()
-xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
-extractor.save_sampleData(xTr,yTr,xV,yV,xTest,yTest)
+# extractor = emotionFeatureExtractor()
+# XData,YData = extractor.prepare_and_segment_data()
+# xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
