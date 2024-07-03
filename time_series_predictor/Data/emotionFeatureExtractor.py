@@ -32,6 +32,7 @@ class emotionFeatureExtractor:
         df = df[['time', 'scores']] #only care about these 2
         df['time'] = pd.to_timedelta(df['time'], unit='ms')
         df.set_index('time', inplace=True) #time is now the index
+        df.index = df.index - df.index[0]
 
         # Expand the 'scores' column into multiple columns
         scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
@@ -41,7 +42,7 @@ class emotionFeatureExtractor:
         # testingResampledlinear = testing.resample(self.target_freq).interpolate(method='linear')
         # testingResamplednearest = testing.resample(self.target_freq).interpolate(method='nearest')
         # # Resample and interpolate
-        # resampled_scores_df = scores_df.resample(self.target_freq).interpolate(method='linear')
+        # resampled_scores_df = scores_df.resample(self.target_freq).mean().ffill()
 
         # # Convert back to numpy array
         # scores_array = resampled_scores_df.to_numpy()
@@ -114,6 +115,4 @@ class emotionFeatureExtractor:
 
     #TODO: write feature extraction for padding and masking method
 
-# extractor = emotionFeatureExtractor()
-# XData,YData = extractor.prepare_and_segment_data()
-# xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
+# extractor = emotionFeatureExtractor()# XData,YData = extractor.prepare_and_segment_data()# xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
