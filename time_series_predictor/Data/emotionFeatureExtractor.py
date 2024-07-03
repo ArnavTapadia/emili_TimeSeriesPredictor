@@ -102,18 +102,19 @@ class emotionFeatureExtractor:
 
         return xTrain, yTrain, xVal, yVal, xTest, yTest
     
-    def save_sampleData(self, x_train, x_val, x_test, y_train, y_val, y_test, save_dir = 'time_series_predictor/Data/Data_Saves'):
-            # Save each array to a file
-        np.save(os.path.join(save_dir, 'x_train.npy'), x_train)
-        np.save(os.path.join(save_dir, 'x_val.npy'), x_val)
-        np.save(os.path.join(save_dir, 'x_test.npy'), x_test)
-        np.save(os.path.join(save_dir, 'y_train.npy'), y_train)
-        np.save(os.path.join(save_dir, 'y_val.npy'), y_val)
-        np.save(os.path.join(save_dir, 'y_test.npy'), y_test)
+    def save_sampleData(self, x_train, y_train, x_val, y_val, x_test, y_test, save_dir = 'time_series_predictor/Data/Data_Saves' , fName = ''):
+        # Save each array to a file
+        np.save(os.path.join(save_dir, fName + 'x_train.npy'), x_train)
+        np.save(os.path.join(save_dir, fName + 'y_train.npy'), y_train)
+        np.save(os.path.join(save_dir, fName + 'x_val.npy'), x_val)
+        np.save(os.path.join(save_dir, fName + 'y_val.npy'), y_val)
+        np.save(os.path.join(save_dir, fName + 'x_test.npy'), x_test)
+        np.save(os.path.join(save_dir, fName + 'y_test.npy'), y_test)
 
 
     #TODO: write feature extraction for padding and masking method
 
 extractor = emotionFeatureExtractor()
 XData,YData = extractor.prepare_and_segment_data()
-xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, 5)
+xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
+extractor.save_sampleData(xTr,yTr,xV,yV,xTest,yTest)
