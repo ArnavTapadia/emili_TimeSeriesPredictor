@@ -38,7 +38,8 @@ class emotionFeatureExtractor:
 
         #TODO: Fix resampling
         # testing = scores_df.loc[:,0]/1000000
-        # testingResampled = testing.resample(self.target_freq).interpolate(method='linear')
+        # testingResampledlinear = testing.resample(self.target_freq).interpolate(method='linear')
+        # testingResamplednearest = testing.resample(self.target_freq).interpolate(method='nearest')
         # # Resample and interpolate
         # resampled_scores_df = scores_df.resample(self.target_freq).interpolate(method='linear')
 
