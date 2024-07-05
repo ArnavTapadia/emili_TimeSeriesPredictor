@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import emotionFeatureExtractor
+from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExtractor
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import LSTM, Dense
 
