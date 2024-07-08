@@ -26,7 +26,7 @@ class emotionFeatureExtractor:
                     all_data.append(data) #all_data should be of length n and each element is a full time series of emotion data
         return all_data
     
-    def resample_data(self, file_data): #resampling the data linearly so we have 10 readings per second
+    def resample_data(self, file_data, resample_method = 'expmovavg'):
         #'100ms' translates to 10 Hz frequency
         df = pd.DataFrame(file_data) #current data is sampled at ~9-12 readings per second - varies
         df = df[['time', 'scores']] #only care about these 2
@@ -38,11 +38,18 @@ class emotionFeatureExtractor:
         scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
 
         #TODO: Fix resampling
+
+        # ––––––– Method 1: exponential moving average with a half-life of say 500ms –––––––––––––
+
         # testing = scores_df.loc[:,0]/1000000
         # testingResampledlinear = testing.resample(self.target_freq).interpolate(method='linear')
         # testingResamplednearest = testing.resample(self.target_freq).interpolate(method='nearest')
         # # Resample and interpolate
         # resampled_scores_df = scores_df.resample(self.target_freq).mean().ffill()
+
+
+        # ––––––– Method 2: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
+
 
         # # Convert back to numpy array
         # scores_array = resampled_scores_df.to_numpy()
@@ -51,7 +58,7 @@ class emotionFeatureExtractor:
 
         return scores_array
     
-    def prepare_and_segment_data(self):
+    def prepare_and_segment_data(self, all_data):
         '''
         Method #1 for training model:
         Segments data so that only the previous 1 minute (600 readings) are used to make a guess for the next 1 minute
