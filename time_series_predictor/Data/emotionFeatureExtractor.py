@@ -26,13 +26,21 @@ class emotionFeatureExtractor:
                     all_data.append(data) #all_data should be of length n and each element is a full time series of emotion data
         return all_data
     
-    def resample_data(self, file_data, resample_method = 'expmovavg'):
+    def resample_data(self, file_data, resampling_method):
+        print(resampling_method)
+        '''
+        resampling method is either
+        1. exponential moving average with a half-life of say 500ms
+        2. the sequence of pairs (timestamp_n, scores_n). No binning, no averaging
+        '''
+
+
         #'100ms' translates to 10 Hz frequency
         df = pd.DataFrame(file_data) #current data is sampled at ~9-12 readings per second - varies
         df = df[['time', 'scores']] #only care about these 2
         df['time'] = pd.to_timedelta(df['time'], unit='ms')
         df.set_index('time', inplace=True) #time is now the index
-        df.index = df.index - df.index[0]
+        df.index = df.index - df.index[0] #starting time at 0ms
 
         # Expand the 'scores' column into multiple columns
         scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
@@ -58,7 +66,7 @@ class emotionFeatureExtractor:
 
         return scores_array
     
-    def prepare_and_segment_data(self, all_data):
+    def prepare_and_segment_data(self, resample_method = 'expmovavg'):
         '''
         Method #1 for training model:
         Segments data so that only the previous 1 minute (600 readings) are used to make a guess for the next 1 minute
@@ -66,7 +74,7 @@ class emotionFeatureExtractor:
         '''
         
         all_data = self.read_emotion_logs()
-        resampled_data = [self.resample_data(file_data) for file_data in all_data]
+        resampled_data = [self.resample_data(file_data, resample_method) for file_data in all_data]
         
         #for testing 3 lines below:
         # num_files = len(resampled_data)
