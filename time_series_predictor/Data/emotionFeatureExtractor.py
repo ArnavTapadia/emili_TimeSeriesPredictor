@@ -40,9 +40,6 @@ class emotionFeatureExtractor:
         df = df[['time', 'scores']] #only care about these 2
         df['time'] = pd.to_datetime(df['time'], unit='ms')
         df.set_index('time', inplace=True) #time is now the index
-        nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
-        uniondf = df.reindex(df.index.union(nidx))
-        # uniondf.index = uniondf.index - uniondf.index[0]
 
         # Expand the 'scores' column into multiple columns
         scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
@@ -54,19 +51,14 @@ class emotionFeatureExtractor:
         #adjust = False since data is irregularly spaced
         resampled_scores_df = scores_df.resample(self.target_freq).mean().ewm(halflife=500/1000, adjust=False).mean()
         
+        #apply ewm to each 100ms bin (i think?)
         resampled_scores_df2 = scores_df.resample(self.target_freq).apply(lambda x: x.ewm(halflife=500/1000).mean().iloc[-1] if not x.empty else None)
         
         
-        
-
-        testing = scores_df.loc[:,0]/1000000
-        testingResampledlinear = testing.resample(self.target_freq).interpolate(method='linear')
-        testingResamplednearest = testing.resample(self.target_freq).interpolate(method='nearest')
-        # Resample and interpolate
-        # resampled_scores_df = scores_df.resample(self.target_freq).mean().ffill()
 
         # ––––––– Method 3: add 0.1s times and interpolate then reindex ––––––––––––– 
-
+        nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
+        uniondf = df.reindex(df.index.union(nidx))
         
 
         # ––––––– Method 2: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
