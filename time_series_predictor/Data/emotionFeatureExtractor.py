@@ -58,8 +58,7 @@ class emotionFeatureExtractor:
 
         # ––––––– Method 3: add 0.1s times and interpolate then reindex ––––––––––––– 
         nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
-        uniondf = df.reindex(df.index.union(nidx))
-        
+        uniondf = scores_df.reindex(scores_df.index.union(nidx))        
 
         # ––––––– Method 2: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
 
