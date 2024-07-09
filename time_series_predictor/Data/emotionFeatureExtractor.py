@@ -40,16 +40,25 @@ class emotionFeatureExtractor:
         df = df[['time', 'scores']] #only care about these 2
         df['time'] = pd.to_datetime(df['time'], unit='ms')
         df.set_index('time', inplace=True) #time is now the index
-        df.index = df.index - df.index[0] #starting time at 0ms
+        nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
+        uniondf = df.reindex(df.index.union(nidx))
+        # uniondf.index = uniondf.index - uniondf.index[0]
 
         # Expand the 'scores' column into multiple columns
         scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
+        # scores_df.index = scores_df.index - scores_df.index[0] #starting time at 0ms
 
         #TODO: Fix resampling
 
         # ––––––– Method 1: exponential moving average with a half-life of say 500ms –––––––––––––
-        resampled_scores_df = scores_df.resample(self.target_freq).mean().ewm(halflife=500/1000, adjust=False).mean()
+        #resample taking mean of each bin and then apply ewma
         #adjust = False since data is irregularly spaced
+        resampled_scores_df = scores_df.resample(self.target_freq).mean().ewm(halflife=500/1000, adjust=False).mean()
+        
+        resampled_scores_df2 = scores_df.resample(self.target_freq).apply(lambda x: x.ewm(halflife=500/1000).mean().iloc[-1] if not x.empty else None)
+        
+        
+        
 
         testing = scores_df.loc[:,0]/1000000
         testingResampledlinear = testing.resample(self.target_freq).interpolate(method='linear')
@@ -59,7 +68,7 @@ class emotionFeatureExtractor:
 
         # ––––––– Method 3: add 0.1s times and interpolate then reindex ––––––––––––– 
 
-        nidx = pd.date_range(scores_df.index.min(),scores_df.index.max(), freq = '100ms')
+        
 
         # ––––––– Method 2: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
 
