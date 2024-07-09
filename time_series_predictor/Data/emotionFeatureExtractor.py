@@ -38,7 +38,7 @@ class emotionFeatureExtractor:
         #'100ms' translates to 10 Hz frequency
         df = pd.DataFrame(file_data) #current data is sampled at ~9-12 readings per second - varies
         df = df[['time', 'scores']] #only care about these 2
-        df['time'] = pd.to_timedelta(df['time'], unit='ms')
+        df['time'] = pd.to_datetime(df['time'], unit='ms')
         df.set_index('time', inplace=True) #time is now the index
         df.index = df.index - df.index[0] #starting time at 0ms
 
@@ -48,13 +48,18 @@ class emotionFeatureExtractor:
         #TODO: Fix resampling
 
         # ––––––– Method 1: exponential moving average with a half-life of say 500ms –––––––––––––
+        resampled_scores_df = scores_df.resample(self.target_freq).mean().ewm(halflife=500/1000, adjust=False).mean()
+        #adjust = False since data is irregularly spaced
 
-        # testing = scores_df.loc[:,0]/1000000
-        # testingResampledlinear = testing.resample(self.target_freq).interpolate(method='linear')
-        # testingResamplednearest = testing.resample(self.target_freq).interpolate(method='nearest')
-        # # Resample and interpolate
+        testing = scores_df.loc[:,0]/1000000
+        testingResampledlinear = testing.resample(self.target_freq).interpolate(method='linear')
+        testingResamplednearest = testing.resample(self.target_freq).interpolate(method='nearest')
+        # Resample and interpolate
         # resampled_scores_df = scores_df.resample(self.target_freq).mean().ffill()
 
+        # ––––––– Method 3: add 0.1s times and interpolate then reindex ––––––––––––– 
+
+        nidx = pd.date_range(scores_df.index.min(),scores_df.index.max(), freq = '100ms')
 
         # ––––––– Method 2: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
 
@@ -131,5 +136,5 @@ class emotionFeatureExtractor:
     #TODO: write feature extraction for padding and masking method
 
 extractor = emotionFeatureExtractor()
-XData,YData = extractor.prepare_and_segment_data()
+XData,YData = extractor.prepare_and_segment_data(resample_method='expmovavg')
 xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
