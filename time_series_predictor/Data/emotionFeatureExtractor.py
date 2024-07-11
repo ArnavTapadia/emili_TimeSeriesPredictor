@@ -46,12 +46,15 @@ class emotionFeatureExtractor:
 
         #TODO: Fix resampling
 
-        # ––––––– Method 1: exponential moving average with a half-life of say 500ms –––––––––––––
+        # ––––––– Method 1: resample, mean then exponential moving average with a half-life of say 500ms –––––––––––––
         #resample taking mean of each bin and then apply ewma
         #adjust = False since data is irregularly spaced
         resampled_scores_df = scores_df.resample(self.target_freq).mean().ewm(halflife=500/1000, adjust=False).mean()
         
+        # ––––––– Method 2: resample with exponential moving average with a half-life of say 500ms for every bin–––––––––––––
         #apply ewm to each 100ms bin (i think?)
+        #realistically just takes nearest value -> probs not useful
+        #TODO: check if this is actually good
         resampled_scores_df2 = scores_df.resample(self.target_freq).apply(lambda x: x.ewm(halflife=500/1000).mean().iloc[-1] if not x.empty else None)
         
         
@@ -59,13 +62,18 @@ class emotionFeatureExtractor:
         # ––––––– Method 3: add 0.1s times and interpolate then reindex ––––––––––––– 
         nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
         uniondf = scores_df.reindex(scores_df.index.union(nidx)) #adding every 100ms as times with nans
-                
+        resampled_scores_df3 = uniondf.interpolate('index', method='linear') #using linear interpolation
+        #cast out non multiples of 100ms
 
-        # ––––––– Method 2: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
+
+        # ––––––– Method 4: reinterpolate with unioned index using linear interpolation –––––––––––––
+
+
+        # ––––––– Method 5: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
 
 
         # # Convert back to numpy array
-        # scores_array = resampled_scores_df.to_numpy()
+        scores_array = resampled_scores_df.to_numpy()
         scores_array = scores_df.to_numpy()
         scores_array = scores_array/np.sum(scores_array,axis=1)[:,np.newaxis] #normalizing to 0-1
 
