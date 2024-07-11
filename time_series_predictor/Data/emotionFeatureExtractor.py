@@ -45,41 +45,47 @@ class emotionFeatureExtractor:
         scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
 
         #TODO: Fix resampling
-
+        if resampling_method == 'ewma':
         # ––––––– Method 1: resample, mean then exponential moving average with a half-life of say 500ms –––––––––––––
         #resample taking mean of each bin and then apply ewma
         #adjust = False since data is irregularly spaced
-        resampled_scores_df = scores_df.resample(self.target_freq).mean().ewm(halflife=500/1000, adjust=False).mean()
-        
+            resampled_scores_df = scores_df.resample(self.target_freq).mean().ewm(halflife=500/1000, adjust=False).mean()
+        elif resampling_method == 'binnedewma':
         # ––––––– Method 2: resample with exponential moving average with a half-life of say 500ms for every bin–––––––––––––
         #apply ewm to each 100ms bin (i think?)
         #realistically just takes nearest value -> probs not useful
-        #TODO: check if this is actually good
-        resampled_scores_df2 = scores_df.resample(self.target_freq).apply(lambda x: x.ewm(halflife=500/1000).mean().iloc[-1] if not x.empty else None)
+        #TODO: check if this is actually good -- can replace with interpolation method 3 -> ewm
+            resampled_scores_df = scores_df.resample(self.target_freq).apply(lambda x: x.ewm(halflife=500/1000, adjust=False).mean().iloc[-1] if not x.empty else None)
         
         
-
+        elif resampling_method == 'interpolation':
         # ––––––– Method 3: add 0.1s times and interpolate then reindex ––––––––––––– 
-        nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
-        uniondf = scores_df.reindex(scores_df.index.union(nidx)) #adding every 100ms as times with nans
-        resampled_scores_df3 = uniondf.interpolate('index', method='linear') #using linear interpolation
+            nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
+            uniondf = scores_df.reindex(scores_df.index.union(nidx)) #adding every 100ms as times with nans
+            resampled_scores_df = uniondf.interpolate(method='time') #using linear interpolation
         #cast out non multiples of 100ms
 
 
-        # ––––––– Method 4: reinterpolate with unioned index using linear interpolation –––––––––––––
+        elif resampling_method == 'times_scores':
+            # ––––––– Method 4: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
+            resampled_scores_df = scores_df.reset_index()
+            resampled_scores_df['time'] = resampled_scores_df['time']-resampled_scores_df['time'][0]
+            resampled_scores_df['time'] = resampled_scores_df['time'].dt.total_seconds()
 
-
-        # ––––––– Method 5: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
-
-
-        # # Convert back to numpy array
+        # Convert back to numpy array
+        #reset scores time to 0
         scores_array = resampled_scores_df.to_numpy()
-        scores_array = scores_df.to_numpy()
-        scores_array = scores_array/np.sum(scores_array,axis=1)[:,np.newaxis] #normalizing to 0-1
+        if resampling_method != 'times_scores':
+            scores_array = scores_array/(np.sum(scores_array,axis=1)[:,np.newaxis]) #normalizing to 0-1
+        else:
+            times = scores_array[:,0]
+            scores_array = scores_array[:,1:]/(np.sum(scores_array[:,1:],axis=1)[:,np.newaxis]) #normalizing to 0-1
+            scores_array = np.hstack((times[:,np.newaxis],scores_array))
+            
 
         return scores_array
     
-    def prepare_and_segment_data(self, resample_method = 'expmovavg'):
+    def prepare_and_segment_data(self, resample_method = 'ewma'):
         '''
         Method #1 for training model:
         Segments data so that only the previous 1 minute (600 readings) are used to make a guess for the next 1 minute
@@ -144,5 +150,5 @@ class emotionFeatureExtractor:
     #TODO: write feature extraction for padding and masking method
 
 extractor = emotionFeatureExtractor()
-XData,YData = extractor.prepare_and_segment_data(resample_method='expmovavg')
+XData,YData = extractor.prepare_and_segment_data(resample_method='ewma')
 xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
