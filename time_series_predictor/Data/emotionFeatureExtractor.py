@@ -43,7 +43,7 @@ class emotionFeatureExtractor:
         # Expand the 'scores' column into multiple columns
         scores_df = pd.DataFrame(df['scores'].tolist(), index=df.index) #Note features are normalized using sum
 
-        #TODO: Fix resampling
+        #TODO: Find best resampling
         if resampling_method == 'ewma':
             # ––––––– Method 1: resample, mean then exponential moving average with a half-life of say 500ms –––––––––––––
             #resample taking mean of each bin and then apply ewma
