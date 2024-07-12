@@ -46,17 +46,17 @@ class emotionFeatureExtractor:
 
         #TODO: Fix resampling
         if resampling_method == 'ewma':
-        # ––––––– Method 1: resample, mean then exponential moving average with a half-life of say 500ms –––––––––––––
-        #resample taking mean of each bin and then apply ewma
-        #adjust = False since data is irregularly spaced
+            # ––––––– Method 1: resample, mean then exponential moving average with a half-life of say 500ms –––––––––––––
+            #resample taking mean of each bin and then apply ewma
+            #adjust = False since data is irregularly spaced
             resampled_scores_df = scores_df.resample(self.target_freq).mean().ewm(halflife=500/1000, adjust=False).mean()
        
         elif resampling_method == 'binnedewma':
-        # ––––––– Method 2: resample with exponential moving average with a half-life of say 500ms for every bin–––––––––––––
-        #https://stackoverflow.com/questions/66271048/dataframe-ewm-for-groupby-resample
-        #apply ewm to each 100ms bin (i think?)
-        #realistically just takes nearest value -> probs not useful
-        #TODO: check if this is actually good -- can replace with interpolation method 3 -> ewm
+            # ––––––– Method 2: resample with exponential moving average with a half-life of say 500ms for every bin–––––––––––––
+            #https://stackoverflow.com/questions/66271048/dataframe-ewm-for-groupby-resample
+            #apply ewm to each 100ms bin (i think?)
+            #realistically just takes nearest value -> probs not useful
+            #TODO: check if this is actually good -- can replace with interpolation method 3 -> ewm
             resampled_scores_df = scores_df.resample(self.target_freq).apply(lambda x: x.ewm(halflife=500/1000, adjust=False).mean().iloc[-1] if not x.empty else None)
         
         elif resampling_method == 'interpolation':
@@ -74,9 +74,18 @@ class emotionFeatureExtractor:
             resampled_scores_df = uniondf.ewm(halflife=500/1000, adjust=False).mean()
             #cast out non multiples of 100ms
             resampled_scores_df = resampled_scores_df.loc[nidx]
+        
+        elif resampling_method == 'interp_ewmaSmooth':
+            # ––––––– Method 5: add 0.1s times and interpolate then apply ewma smoothing ––––––––––––– 
+            nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
+            uniondf = scores_df.reindex(scores_df.index.union(nidx)) #adding every 100ms as times with nans
+            resampled_scores_df = uniondf.interpolate(method='time') #using linear interpolation
+            resampled_scores_df = resampled_scores_df.ewm(halflife=500/1000, adjust=False).mean()
+            #cast out non multiples of 100ms
+            resampled_scores_df = resampled_scores_df.loc[nidx]
 
         elif resampling_method == 'times_scores':
-            # ––––––– Method 5: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
+            # ––––––– Method 6: predict the sequence of pairs (timestamp_n, scores_n). No binning, no averaging –––––––––
             resampled_scores_df = scores_df.reset_index()
             resampled_scores_df['time'] = resampled_scores_df['time']-resampled_scores_df['time'][0]
             resampled_scores_df['time'] = resampled_scores_df['time'].dt.total_seconds()
