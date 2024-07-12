@@ -27,7 +27,6 @@ class emotionFeatureExtractor:
         return all_data
     
     def resample_data(self, file_data, resampling_method):
-        print(resampling_method)
         '''
         resampling method is either
         1. exponential moving average with a half-life of say 500ms
@@ -168,5 +167,7 @@ class emotionFeatureExtractor:
     #TODO: write feature extraction for padding and masking method
 
 extractor = emotionFeatureExtractor()
-XData,YData = extractor.prepare_and_segment_data(resample_method='ewma')
+for meth in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
+    XData,YData = extractor.prepare_and_segment_data(resample_method=meth)
+
 xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
