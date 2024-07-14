@@ -121,13 +121,15 @@ class emotionFeatureExtractor:
         X, Y = [], []
 
         for file_data in resampled_data:
-            for start in range(0, file_data.shape[0] - self.segment_length, self.stride): #increments of length 600(segment length), with the last 600 for the label
-                end = start + self.segment_length
-                if end + self.segment_length <= file_data.shape[0]:
-                    X.append(file_data[start:end])
-                    Y.append(file_data[end:end + self.segment_length])
-                    #Note some of X and Y are going to be mostly 0's rather than vectors
-                    #X and Y should have size ~ # of minutes of data x600x7
+            #TODO: determine best way to split data when using timestamps and scores as input and change model
+            # if resample_method != 'times_scores':
+                for start in range(0, file_data.shape[0] - self.segment_length, self.stride): #increments of length 600(segment length), with the last 600 for the label
+                    end = start + self.segment_length
+                    if end + self.segment_length <= file_data.shape[0]:
+                        X.append(file_data[start:end])
+                        Y.append(file_data[end:end + self.segment_length])
+                        #Note some of X and Y are going to be mostly 0's rather than vectors
+                        #X and Y should have size ~ # of minutes of data x600x7
         X = np.array(X)
         Y = np.array(Y)
         #for each X[i], the corresponding predicted label is Y[i]
