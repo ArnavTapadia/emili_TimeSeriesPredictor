@@ -54,7 +54,7 @@ class emotionFeatureExtractor:
             # ––––––– Method 2: resample with exponential moving average with a half-life of say 500ms for every bin–––––––––––––
             #https://stackoverflow.com/questions/66271048/dataframe-ewm-for-groupby-resample
             #apply ewm to each 100ms bin (i think?)
-            #realistically just takes nearest value -> probs not useful
+            #realistically just takes nearest value -> probs not useful & super slow -- shouldn't use
             #TODO: check if this is actually good -- can replace with interpolation method 3 -> ewm
             resampled_scores_df = scores_df.resample(self.target_freq).apply(lambda x: x.ewm(halflife=500/1000, adjust=False).mean().iloc[-1] if not x.empty else None)
         
@@ -70,7 +70,7 @@ class emotionFeatureExtractor:
             # ––––––– Method 4: add 0.1s times and use ewma to smooth ––––––––––––– 
             nidx = pd.date_range(df.index.min(), df.index.max(), freq='100ms')
             uniondf = scores_df.reindex(scores_df.index.union(nidx)) #adding every 100ms as times with nans
-            resampled_scores_df = uniondf.ewm(halflife=500/1000, adjust=False).mean()
+            resampled_scores_df = uniondf.ewm(halflife=500/1000, adjust=False, ignore_na=True).mean()
             #cast out non multiples of 100ms
             resampled_scores_df = resampled_scores_df.loc[nidx]
         
@@ -92,6 +92,7 @@ class emotionFeatureExtractor:
         # Convert back to numpy array
         #reset scores time to 0
         scores_array = resampled_scores_df.to_numpy()
+        #TODO: determine if this is the best way to normalize or I should divide by 1000000
         if resampling_method != 'times_scores':
             scores_array = scores_array/(np.sum(scores_array,axis=1)[:,np.newaxis]) #normalizing to 0-1
         else:
