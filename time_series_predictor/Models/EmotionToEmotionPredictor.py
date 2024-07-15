@@ -3,6 +3,7 @@ import tensorflow as tf
 from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExtractor
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import LSTM, Dense, TimeDistributed
+import os
 
 class LSTMEmotionPredictor:
     def __init__(self, input_shape):
@@ -76,14 +77,19 @@ extractor = emotionFeatureExtractor()
 #typical usage below
 '''
 XData,YData = extractor.prepare_and_segment_data()
-xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
 and input_shape is defined based on your data shape
 '''
 
 #Testing different resampling methods
 #load data:
+filterMethods = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']
+#to load data file name is os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', fName + '_x.npy') or y.npy
+XData = np.load(os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', 'ewma' + '_x.npy'))
+YData = np.load(os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', 'ewma' + '_y.npy'))
 
 
+#creating training and testing split
+xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
 # Create an instance of LSTMEmotionPredictor
 input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
 lstm_model = LSTMEmotionPredictor(input_shape)
