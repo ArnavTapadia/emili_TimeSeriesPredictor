@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExtractor
 from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import LSTM, Dense
+from tensorflow.python.keras.layers import LSTM, Dense, TimeDistributed
 
 class LSTMEmotionPredictor:
     def __init__(self, input_shape):
@@ -25,16 +25,17 @@ class LSTMEmotionPredictor:
         - tf.keras.Model: Compiled LSTM model.
         """
         model = Sequential()
-        # LSTM layer with 64 units #to be validated
-        model.add(LSTM(64, input_shape=input_shape))
-        # Output layer with 7 units (assuming 7 output classes for emotions)
-        model.add(Dense(7, activation='softmax'))
+        
+        # LSTM layer with 64 units, returning sequences
+        model.add(LSTM(64, input_shape=input_shape, return_sequences=True))
+        
+        # Output layer with 7 units for each time step
+        model.add(TimeDistributed(Dense(7, activation='softmax')))
         
         # Compile the model
         model.compile(loss='categorical_crossentropy',
-                      optimizer='adam',
-                      metrics=['accuracy'])
-        
+                    optimizer='adam',
+                    metrics=['accuracy'])
         return model
 
     def train(self, x_train, y_train, epochs=10, batch_size=32, validation_data=None):
