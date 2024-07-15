@@ -157,20 +157,35 @@ class emotionFeatureExtractor:
 
         return xTrain, yTrain, xVal, yVal, xTest, yTest
     
-    def save_sampleData(self, x_train, y_train, x_val, y_val, x_test, y_test, save_dir = 'time_series_predictor/Data/Data_Saves' , fName = ''):
+    def save_trainTestData(self, x_train, y_train, x_val, y_val, x_test, y_test, save_dir = 'time_series_predictor/Data/Data_Saves' , fName = ''):
         # Save each array to a file
-        np.save(os.path.join(save_dir, fName + 'x_train.npy'), x_train)
-        np.save(os.path.join(save_dir, fName + 'y_train.npy'), y_train)
-        np.save(os.path.join(save_dir, fName + 'x_val.npy'), x_val)
-        np.save(os.path.join(save_dir, fName + 'y_val.npy'), y_val)
-        np.save(os.path.join(save_dir, fName + 'x_test.npy'), x_test)
-        np.save(os.path.join(save_dir, fName + 'y_test.npy'), y_test)
+        np.save(os.path.join(save_dir, fName + '_x_train.npy'), x_train)
+        np.save(os.path.join(save_dir, fName + '_y_train.npy'), y_train)
+        np.save(os.path.join(save_dir, fName + '_x_val.npy'), x_val)
+        np.save(os.path.join(save_dir, fName + '_y_val.npy'), y_val)
+        np.save(os.path.join(save_dir, fName + '_x_test.npy'), x_test)
+        np.save(os.path.join(save_dir, fName + '_y_test.npy'), y_test)
+    
+    def save_Data(self, X, Y, save_dir = 'time_series_predictor/Data/Data_Saves/Preprocessed' , fName = ''):
+        # Save each array to a file
+        np.save(os.path.join(save_dir, fName + '_x.npy'), X)
+        np.save(os.path.join(save_dir, fName + '_y.npy'), Y)
 
+    def update_dataSaves(self):
+        ''' 
+        Function to read the json data files and update the saved numpys for XData and YData
+        To be used mainly for saving data to test preprocessing methods
+        '''
+        for filterMethod in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
+            XData,YData = self.prepare_and_segment_data(resample_method=filterMethod)
+            self.save_Data(X=XData,Y=YData, fName=filterMethod)
 
+    
     #TODO: write feature extraction for padding and masking method
 
 extractor = emotionFeatureExtractor()
-for meth in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
-    XData,YData = extractor.prepare_and_segment_data(resample_method=meth)
+extractor.update_dataSaves()
+# for meth in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
+#     XData,YData = extractor.prepare_and_segment_data(resample_method=meth)
 
-xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
+# xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
