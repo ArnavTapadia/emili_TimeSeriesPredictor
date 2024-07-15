@@ -73,9 +73,16 @@ class LSTMEmotionPredictor:
 
 # Example usage:
 extractor = emotionFeatureExtractor()
+#typical usage below
+'''
 XData,YData = extractor.prepare_and_segment_data()
 xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
-# and input_shape is defined based on your data shape
+and input_shape is defined based on your data shape
+'''
+
+#Testing different resampling methods
+#load data:
+
 
 # Create an instance of LSTMEmotionPredictor
 input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
