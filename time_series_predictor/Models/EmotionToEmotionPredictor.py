@@ -34,7 +34,7 @@ class LSTMEmotionPredictor:
         model.add(TimeDistributed(Dense(7, activation='softmax')))
         
         # Compile the model
-        model.compile(loss='categorical_crossentropy',
+        model.compile(loss='kullback_leibler_divergence',
                     optimizer='adam',
                     metrics=['accuracy'])
         return model
