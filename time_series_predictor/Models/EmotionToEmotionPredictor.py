@@ -1,8 +1,10 @@
 import numpy as np
-import tensorflow as tf
+import matplotlib.pyplot as plt
+# import tensorflow as tf
+# from tensorflow import keras
 from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExtractor
-from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import LSTM, Dense, TimeDistributed
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, TimeDistributed
 import os
 
 class LSTMEmotionPredictor:
@@ -34,7 +36,7 @@ class LSTMEmotionPredictor:
         model.add(TimeDistributed(Dense(7, activation='softmax')))
         
         # Compile the model
-        model.compile(loss='kullback_leibler_divergence',
+        model.compile(loss='kl_divergence',
                     optimizer='adam',
                     metrics=['accuracy'])
         return model
@@ -96,6 +98,26 @@ lstm_model = LSTMEmotionPredictor(input_shape)
 
 # Train the LSTM model
 history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
+
+#plotting
+plt.figure(figsize=(12, 4))
+plt.subplot(121)
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('Model accuracy')
+plt.ylabel('Accuracy')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Validation'], loc='upper left')
+
+# Plot training & validation loss values
+plt.subplot(122)
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Validation'], loc='upper left')
+plt.show()
 
 # Evaluate the model on test data
 loss, accuracy = lstm_model.evaluate(xTest, yTest)
