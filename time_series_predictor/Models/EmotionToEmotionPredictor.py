@@ -84,20 +84,24 @@ and input_shape is defined based on your data shape
 
 #Testing different resampling methods
 #load data:
-filterMethods = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']
+filterMethods = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#, 'times_scores']
+modelMap = {}
+for testMethod in filterMethods:
 #to load data file name is os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', fName + '_x.npy') or y.npy
-XData = np.load(os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', 'ewma' + '_x.npy'))
-YData = np.load(os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', 'ewma' + '_y.npy'))
+    XData = np.load(os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', testMethod + '_x.npy'))
+    YData = np.load(os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', testMethod + '_y.npy'))
 
 
-#creating training and testing split
-xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
-# Create an instance of LSTMEmotionPredictor
-input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
-lstm_model = LSTMEmotionPredictor(input_shape)
+    #creating training and testing split
+    xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
+    # Create an instance of LSTMEmotionPredictor
+    input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
+    lstm_model = LSTMEmotionPredictor(input_shape)
 
-# Train the LSTM model
-history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
+    # Train the LSTM model
+    history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
+
+    modelMap[testMethod] = (lstm_model,history)
 
 #plotting
 plt.figure(figsize=(12, 4))
