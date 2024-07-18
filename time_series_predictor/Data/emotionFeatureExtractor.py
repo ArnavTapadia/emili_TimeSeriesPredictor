@@ -157,7 +157,7 @@ class emotionFeatureExtractor:
 
         return xTrain, yTrain, xVal, yVal, xTest, yTest
     
-    def save_trainTestData(self, x_train, y_train, x_val, y_val, x_test, y_test, save_dir = 'time_series_predictor/Data/Data_Saves' , fName = ''):
+    def save_trainTestData(self, x_train, y_train, x_val, y_val, x_test, y_test, save_dir = '../Data/Data_Saves/Preprocessed', fName = ''):
         # Save each array to a file
         np.save(os.path.join(save_dir, fName + '_x_train.npy'), x_train)
         np.save(os.path.join(save_dir, fName + '_y_train.npy'), y_train)
@@ -166,7 +166,7 @@ class emotionFeatureExtractor:
         np.save(os.path.join(save_dir, fName + '_x_test.npy'), x_test)
         np.save(os.path.join(save_dir, fName + '_y_test.npy'), y_test)
     
-    def save_PreprocessedData(self, X, Y, save_dir = 'time_series_predictor/Data/Data_Saves/Preprocessed' , fName = ''):
+    def save_PreprocessedData(self, X, Y, save_dir = '../Data/Data_Saves/Preprocessed' , fName = ''):
         # Save each array to a file
         np.save(os.path.join(save_dir, fName + '_x.npy'), X)
         np.save(os.path.join(save_dir, fName + '_y.npy'), Y)
@@ -183,8 +183,8 @@ class emotionFeatureExtractor:
     
     #TODO: write feature extraction for padding and masking method
 
-extractor = emotionFeatureExtractor()
-extractor.update_dataSaves()
+# extractor = emotionFeatureExtractor()
+# extractor.update_dataSaves()
 # for meth in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
 #     XData,YData = extractor.prepare_and_segment_data(resample_method=meth)
 

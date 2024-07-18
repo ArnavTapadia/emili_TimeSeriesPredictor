@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # from tensorflow import keras
 import sys
 import os
-sys.path.append('/Users/arnav/Google Drive/Cornell/Coding Projects/emili_TimeSeriesPredictor')
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) #going up several files until emili_TimeSeriesPredictor
 from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExtractor
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, TimeDistributed
