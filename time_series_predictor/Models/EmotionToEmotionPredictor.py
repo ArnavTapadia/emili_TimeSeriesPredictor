@@ -1,3 +1,4 @@
+#%% imports
 import numpy as np
 import matplotlib.pyplot as plt
 # import tensorflow as tf
@@ -6,7 +7,7 @@ from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExt
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, TimeDistributed
 import os
-
+#%% LSTM model class definition
 class LSTMEmotionPredictor:
     def __init__(self, input_shape):
         """
@@ -74,15 +75,14 @@ class LSTMEmotionPredictor:
         """
         return self.model.evaluate(x_test, y_test)
 
-# Example usage:
+#%% testing out the functions - initializing
 extractor = emotionFeatureExtractor()
-#typical usage below
-'''
-XData,YData = extractor.prepare_and_segment_data()
-and input_shape is defined based on your data shape
-'''
 
-#Testing different resampling methods
+# XData,YData = extractor.prepare_and_segment_data()
+# and input_shape is defined based on your data shape
+
+
+#%% Testing different resampling methods
 #load data:
 filterMethods = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#, 'times_scores']
 modelMap = {}
@@ -103,7 +103,7 @@ for testMethod in filterMethods:
 
     modelMap[testMethod] = (lstm_model,history)
 
-#plotting
+#%% plotting
 plt.figure(figsize=(12, 4))
 plt.subplot(121)
 plt.plot(history.history['accuracy'])
@@ -123,7 +123,7 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Validation'], loc='upper left')
 plt.show()
 
-# Evaluate the model on test data
+#%% Evaluate the model on test data
 loss, accuracy = lstm_model.evaluate(xTest, yTest)
 
 print(f'Test loss: {loss}')
