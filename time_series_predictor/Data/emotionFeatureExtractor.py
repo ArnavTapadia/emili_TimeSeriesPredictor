@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 
 
 class emotionFeatureExtractor:
-    def __init__(self, log_dir = 'time_series_predictor/Data', segment_length=600, stride=600, target_freq='100ms'):
+    def __init__(self, log_dir = '../Data', segment_length=600, stride=600, target_freq='100ms'):
         self.log_dir = log_dir
         self.segment_length = segment_length
         self.stride = stride
