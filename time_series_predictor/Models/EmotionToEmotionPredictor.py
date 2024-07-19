@@ -88,10 +88,11 @@ extractor = emotionFeatureExtractor()
 #load data:
 filterMethods = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#, 'times_scores']
 modelMap = {}
+time_series_predictorPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for testMethod in filterMethods:
 #to load data file name is os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', fName + '_x.npy') or y.npy
-    XData = np.load(os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', testMethod + '_x.npy'))
-    YData = np.load(os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', testMethod + '_y.npy'))
+    XData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', testMethod + '_x.npy'))
+    YData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', testMethod + '_y.npy'))
 
 
     #creating training and testing split
