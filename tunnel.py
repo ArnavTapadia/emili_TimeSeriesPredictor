@@ -40,7 +40,7 @@ class EmoTunnel(DetectMiniXceptionFER): # video pipeline for real-time FER visua
         #self.draw = pr.TunnelBoxes(self.time_series, self.colors, True) # override the default draw method
 
         # Set up log directory and file
-        log_dir = "time_series_predictor/Data"
+        log_dir = "time_series_predictor/Data/Data_Saves"
         os.makedirs(log_dir, exist_ok=True)
         log_file_name = f"emotion_log_{start_time_str}.jsonl"
         self.log_file_path = os.path.join(log_dir, log_file_name)
