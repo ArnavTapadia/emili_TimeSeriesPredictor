@@ -107,27 +107,67 @@ for testMethod in filterMethods:
     modelMap[testMethod] = (lstm_model,history)
 
 #%% plotting
-plt.figure(figsize=(12, 4))
-plt.subplot(121)
-plt.plot(history.history['accuracy'])
-plt.plot(history.history['val_accuracy'])
-plt.title('Model accuracy')
-plt.ylabel('Accuracy')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Validation'], loc='upper left')
+# Set up the plot
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 16))
+fig.suptitle('Model Performance Comparison', fontsize=16)
 
-# Plot training & validation loss values
-plt.subplot(122)
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('Model loss')
-plt.ylabel('Loss')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Validation'], loc='upper left')
+# Define colors for each model
+colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethods)))
+
+# Plot accuracy and loss for each model
+for (method, (model, history)), color in zip(modelMap.items(), colors):
+    # Plot training accuracy
+    ax1.plot(history.history['accuracy'], color=color, label=method, linewidth=2)
+    
+    # Plot validation accuracy
+    ax2.plot(history.history['val_accuracy'], color=color, label=method, linewidth=2)
+    
+    # Plot training loss
+    ax3.plot(history.history['loss'], color=color, label=method, linewidth=2)
+    
+    # Plot validation loss
+    ax4.plot(history.history['val_loss'], color=color, label=method, linewidth=2)
+
+# Customize training accuracy subplot
+ax1.set_title('Training Accuracy', fontsize=14)
+ax1.set_ylabel('Accuracy', fontsize=12)
+ax1.set_xlabel('Epoch', fontsize=12)
+ax1.legend(loc='lower right', fontsize=10)
+ax1.grid(True, linestyle='--', alpha=0.7)
+
+# Customize validation accuracy subplot
+ax2.set_title('Validation Accuracy', fontsize=14)
+ax2.set_ylabel('Accuracy', fontsize=12)
+ax2.set_xlabel('Epoch', fontsize=12)
+ax2.legend(loc='lower right', fontsize=10)
+ax2.grid(True, linestyle='--', alpha=0.7)
+
+# Customize training loss subplot
+ax3.set_title('Training Loss', fontsize=14)
+ax3.set_ylabel('Loss', fontsize=12)
+ax3.set_xlabel('Epoch', fontsize=12)
+ax3.legend(loc='upper right', fontsize=10)
+ax3.grid(True, linestyle='--', alpha=0.7)
+
+# Customize validation loss subplot
+ax4.set_title('Validation Loss', fontsize=14)
+ax4.set_ylabel('Loss', fontsize=12)
+ax4.set_xlabel('Epoch', fontsize=12)
+ax4.legend(loc='upper right', fontsize=10)
+ax4.grid(True, linestyle='--', alpha=0.7)
+
+# Adjust layout and display
+plt.tight_layout()
 plt.show()
 
 #%% Evaluate the model on test data
-loss, accuracy = lstm_model.evaluate(xTest, yTest)
 
-print(f'Test loss: {loss}')
-print(f'Test accuracy: {accuracy}')
+# Print test loss and accuracy for each model
+print("\nTest Results:")
+for method, (model, history) in modelMap.items():
+    loss, accuracy = model.evaluate(xTest, yTest)
+    print(f'{method}:')
+    print(f'  Test loss: {loss:.4f}')
+    print(f'  Test accuracy: {accuracy:.4f}')
+    print()
+# %%
