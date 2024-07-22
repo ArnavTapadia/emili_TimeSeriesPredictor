@@ -1,14 +1,18 @@
 #%% imports
 import numpy as np
 import matplotlib.pyplot as plt
-# import tensorflow as tf
-# from tensorflow import keras
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) #going up several files until emili_TimeSeriesPredictor
 from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExtractor
+#Modeling imports
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, TimeDistributed
+#hyperparam optimization imports
+from skopt import BayesSearchCV
+from skopt.space import Real, Categorical, Integer
+from sklearn.model_selection import PredefinedSplit
+from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 #%% LSTM model class definition
 class LSTMEmotionPredictor:
     def __init__(self, input_shape):
@@ -76,6 +80,41 @@ class LSTMEmotionPredictor:
         - list: Evaluation results [loss, accuracy].
         """
         return self.model.evaluate(x_test, y_test)
+    
+    def hyperparamOptimzie(filterMethod, x_train, y_train, x_val, y_val, n_itr = 50):
+        """
+        Perform Bayesian optimization for hyperparameter tuning of the LSTM model.
+
+        Parameters:
+        - x_train (np.ndarray): Training data
+        - y_train (np.ndarray): Training labels
+        - x_val (np.ndarray): Validation data
+        - y_val (np.ndarray): Validation labels
+        - filter_method (str): Name of the filter method being used
+        - n_iter (int): Number of iterations for Bayesian optimization
+
+        Returns:
+        - dict: Best model, its hyperparameters, and performance
+        """
+
+        #combining train and val sets (split will be maintained in test_fold)
+        X = np.concatenate((x_train, x_val), axis=0)
+        Y = np.concatenate((y_train, y_val), axis=0)
+
+        # Create a PredefinedSplit
+        test_fold = np.concatenate((np.full(x_train.shape[0], -1), np.zeros(x_val.shape[0]))) #-1's for training 0 for val
+        ps = PredefinedSplit(test_fold)
+
+        # Define the search space
+        search_spaces = {
+            'lstm_units': Integer(16, 256),
+            'batch_size': Categorical([16, 32, 64, 128]),
+            'epochs': Integer(5, 100),
+            'learning_rate': Real(1e-4, 1e-2, prior='log-uniform')
+        }
+
+        hyperParamMap = {} #maps each tuple combination of hyperparameters to 
+        return hyperParamMap
 
 #%% testing out the functions - initializing
 extractor = emotionFeatureExtractor()
