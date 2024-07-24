@@ -7,4 +7,6 @@ pygame
 tensorflow==2.15.0
 pandas
 scikit-learn
+scikit-optimize
 scipy
+scikeras

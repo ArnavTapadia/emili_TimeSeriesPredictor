@@ -12,19 +12,24 @@ from tensorflow.keras.layers import LSTM, Dense, TimeDistributed
 from skopt import BayesSearchCV
 from skopt.space import Real, Categorical, Integer
 from sklearn.model_selection import PredefinedSplit
-from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
+from scikeras.wrappers import KerasRegressor
 #%% LSTM model class definition
 class LSTMEmotionPredictor:
-    def __init__(self, input_shape):
+    def __init__(self, input_shape, LSTMUnits = '64', lossFunc = 'kl_divergence'):
         """
         Initialize the LSTM model.
 
         Parameters:
         - input_shape (tuple): Shape of the input data (excluding batch size).
         """
-        self.model = self.build_model(input_shape)
 
-    def build_model(self, input_shape):
+        self.input_shape = input_shape
+        self.LSTMUnits = LSTMUnits
+        self.lossFunc = lossFunc
+        self.model = self.build_model()
+
+
+    def build_model(self, lstm_units = None, learningRate = 0.001):
         """
         Build the LSTM model.
 
@@ -34,16 +39,16 @@ class LSTMEmotionPredictor:
         Returns:
         - tf.keras.Model: Compiled LSTM model.
         """
-        model = Sequential()
-        
-        # LSTM layer with 64 units, returning sequences
-        model.add(LSTM(64, input_shape=input_shape, return_sequences=True))
-        
-        # Output layer with 7 units for each time step
-        model.add(TimeDistributed(Dense(7, activation='softmax')))
-        
+
+        if lstm_units is None:
+            lstm_units = self.LSTMUnits
+
+        model = Sequential([
+            LSTM(lstm_units, input_shape=self.input_shape, return_sequences=True),
+            TimeDistributed(Dense(7, activation='softmax'))
+        ])
         # Compile the model
-        model.compile(loss='kl_divergence',
+        model.compile(loss=self.lossFunc,
                     optimizer='adam',
                     metrics=['accuracy'])
         return model
@@ -81,7 +86,7 @@ class LSTMEmotionPredictor:
         """
         return self.model.evaluate(x_test, y_test)
     
-    def hyperparamOptimzie(filterMethod, x_train, y_train, x_val, y_val, n_itr = 50):
+    def hyperparamOptimize(self, filterMethod, x_train, y_train, x_val, y_val, n_iter = 50):
         """
         Perform Bayesian optimization for hyperparameter tuning of the LSTM model.
 
@@ -112,6 +117,33 @@ class LSTMEmotionPredictor:
             'epochs': Integer(5, 100),
             'learning_rate': Real(1e-4, 1e-2, prior='log-uniform')
         }
+
+        # Create the BayesSearchCV object
+
+        bayes_search = BayesSearchCV(
+            estimator=KerasRegressor(build_fn=self.build_model, verbose=0),
+            search_spaces=search_spaces,
+            n_iter=n_iter,
+            cv=ps,
+            n_jobs=1,
+            verbose=2,
+            scoring='neg_mean_squared_error'
+        ) #TODO: test scoring
+
+        # Fit the BayesSearchCV object
+        bayes_search.fit(X, y)
+
+        # Get the best parameters and model
+        best_params = bayes_search.best_params_
+        best_model = self.build_model(lstm_units=best_params['lstm_units'], learning_rate=best_params['learning_rate'])
+        best_model.fit(x_train, y_train, 
+                       epochs=best_params['epochs'], 
+                       batch_size=best_params['batch_size'], 
+                       validation_data=(x_val, y_val),
+                       verbose=0)
+
+
+
 
         hyperParamMap = {} #maps each tuple combination of hyperparameters to 
         return hyperParamMap
