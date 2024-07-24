@@ -6,6 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) #going up several files until emili_TimeSeriesPredictor
 from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExtractor
 #Modeling imports
+import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, TimeDistributed
 #hyperparam optimization imports
@@ -15,7 +16,7 @@ from sklearn.model_selection import PredefinedSplit
 from scikeras.wrappers import KerasRegressor
 #%% LSTM model class definition
 class LSTMEmotionPredictor:
-    def __init__(self, input_shape, LSTMUnits = '64', lossFunc = 'kl_divergence'):
+    def __init__(self, input_shape, LSTMUnits = 64, lossFunc = 'kl_divergence'):
         """
         Initialize the LSTM model.
 
@@ -26,10 +27,10 @@ class LSTMEmotionPredictor:
         self.input_shape = input_shape
         self.LSTMUnits = LSTMUnits
         self.lossFunc = lossFunc
-        self.model = self.build_model()
+        self.model = self.create_model()
 
 
-    def build_model(self, lstm_units = None, learningRate = 0.001):
+    def create_model(self, lstm_units = None, learning_rate = 0.001):
         """
         Build the LSTM model.
 
@@ -49,7 +50,7 @@ class LSTMEmotionPredictor:
         ])
         # Compile the model
         model.compile(loss=self.lossFunc,
-                    optimizer='adam',
+                    optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
                     metrics=['accuracy'])
         return model
 
@@ -112,15 +113,15 @@ class LSTMEmotionPredictor:
 
         # Define the search space
         search_spaces = {
-            'lstm_units': Integer(16, 256),
             'batch_size': Categorical([16, 32, 64, 128]),
             'epochs': Integer(5, 100),
-            'learning_rate': Real(1e-4, 1e-2, prior='log-uniform')
+            'model__lstm_units': Integer(16, 256),
+            'model__learning_rate': Real(1e-4, 1e-2, prior='log-uniform')
         }
 
         # Create the BayesSearchCV object
         bayes_search = BayesSearchCV(
-            estimator=KerasRegressor(build_fn=self.build_model, verbose=0),
+            estimator=KerasRegressor(build_fn=self.create_model, verbose=0),
             search_spaces=search_spaces,
             n_iter=n_iter,
             cv=ps,
@@ -134,7 +135,8 @@ class LSTMEmotionPredictor:
 
         # Get the best parameters and model
         best_params = bayes_search.best_params_
-        best_model = self.build_model(lstm_units=best_params['lstm_units'], learning_rate=best_params['learning_rate'])
+
+        best_model = self.create_model(lstm_units=best_params['lstm_units'], learning_rate=best_params['model__learning_rate'])
         best_model.fit(x_train, y_train, 
                        epochs=best_params['epochs'], 
                        batch_size=best_params['batch_size'], 
