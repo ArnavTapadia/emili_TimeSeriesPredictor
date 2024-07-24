@@ -119,7 +119,6 @@ class LSTMEmotionPredictor:
         }
 
         # Create the BayesSearchCV object
-
         bayes_search = BayesSearchCV(
             estimator=KerasRegressor(build_fn=self.build_model, verbose=0),
             search_spaces=search_spaces,
@@ -128,10 +127,10 @@ class LSTMEmotionPredictor:
             n_jobs=1,
             verbose=2,
             scoring='neg_mean_squared_error'
-        ) #TODO: test scoring
+        ) #TODO: test scoring method as 'accuracy'
 
         # Fit the BayesSearchCV object
-        bayes_search.fit(X, y)
+        bayes_search.fit(X, Y)
 
         # Get the best parameters and model
         best_params = bayes_search.best_params_
@@ -143,10 +142,18 @@ class LSTMEmotionPredictor:
                        verbose=0)
 
 
+        # Evaluate the best model
+        val_loss, val_accuracy = best_model.evaluate(x_val, y_val, verbose=0)
 
+        return {
+            'filter_method': filterMethod,
+            'best_model': best_model,
+            'best_params': best_params,
+            'best_val_accuracy': val_accuracy
+            }
 
-        hyperParamMap = {} #maps each tuple combination of hyperparameters to 
-        return hyperParamMap
+        # hyperParamMap = {} #maps each tuple combination of hyperparameters to 
+        # return hyperParamMap
 
 #%% testing out the functions - initializing
 extractor = emotionFeatureExtractor()
@@ -176,6 +183,9 @@ for testMethod in filterMethods:
     history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
 
     modelMap[testMethod] = (lstm_model,history)
+
+    #Finding optimized Model:
+    optimized = lstm_model.hyperparamOptimize(testMethod, xTr, yTr, xVal, yVal)
 
 #%% plotting
 # Set up the plot
