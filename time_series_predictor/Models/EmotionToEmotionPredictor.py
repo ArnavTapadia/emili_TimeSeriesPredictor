@@ -87,6 +87,23 @@ class LSTMEmotionPredictor:
         """
         return self.model.evaluate(x_test, y_test)
     
+    #build model function just for use for bayesian optimization (keras regressor only works on 2d data)
+    def bayes_opt_build_model(self, lstm_units=64, learning_rate=0.001):
+        flattened_input_shape = np.prod(self.input_shape)
+        flattened_output_shape = self.input_shape[0] * 7  # Assuming 7 emotion categories
+
+        model = Sequential([
+            tf.keras.layers.Reshape(self.input_shape, input_shape=(flattened_input_shape,)),
+            LSTM(lstm_units, return_sequences=True),
+            TimeDistributed(Dense(7, activation='softmax')),
+            tf.keras.layers.Reshape((flattened_output_shape,))
+        ])
+        
+        model.compile(loss=self.lossFunc,
+                    optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                    metrics=['accuracy'])
+        return model
+
     def hyperparamOptimize(self, filterMethod, x_train, y_train, x_val, y_val, n_iter = 50):
         """
         Perform Bayesian optimization for hyperparameter tuning of the LSTM model.
@@ -104,8 +121,14 @@ class LSTMEmotionPredictor:
         """
 
         #combining train and val sets (split will be maintained in test_fold)
-        X = np.concatenate((x_train, x_val), axis=0)
-        Y = np.concatenate((y_train, y_val), axis=0)
+        #flattening so data is 2d (#samples, 600*7)
+        X_train_flat = x_train.reshape(x_train.shape[0], -1)
+        X_val_flat = x_val.reshape(x_val.shape[0], -1)
+        X = np.concatenate((X_train_flat, X_val_flat), axis=0)
+        # Flatten the predictions also
+        Y_train_flat = y_train.reshape(y_train.shape[0], -1)
+        Y_val_flat = y_val.reshape(y_val.shape[0], -1)
+        Y = np.concatenate((Y_train_flat, Y_val_flat), axis=0)
 
         # Create a PredefinedSplit
         test_fold = np.concatenate((np.full(x_train.shape[0], -1), np.zeros(x_val.shape[0]))) #-1's for training 0 for val
@@ -118,10 +141,101 @@ class LSTMEmotionPredictor:
             'model__lstm_units': Integer(16, 256),
             'model__learning_rate': Real(1e-4, 1e-2, prior='log-uniform')
         }
+        
+        estimator=KerasRegressor(
+                model=self.bayes_opt_build_model, epochs=10, batch_size=32,
+                verbose=0
+            )
+
+        def build_model(input_shape, lstm_units=64, learning_rate=0.001):
+
+            model = Sequential([
+                LSTM(lstm_units, input_shape=self.input_shape, return_sequences=True),
+                TimeDistributed(Dense(7, activation='softmax'))
+            ])
+            
+            model.compile(loss='mean_squared_error',
+                        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                        metrics=['accuracy'])
+            return model
+
+        def build_model2(input_shape, lstm_units=64, learning_rate=0.001):
+            flattened_input_shape = np.prod(input_shape)
+            flattened_output_shape = input_shape[0] * 7  # Assuming 7 emotion categories
+
+            model = Sequential([
+                tf.keras.layers.Reshape(input_shape, input_shape=(flattened_input_shape,)),
+                LSTM(lstm_units, return_sequences=True),
+                TimeDistributed(Dense(7, activation='softmax')),
+                tf.keras.layers.Reshape((flattened_output_shape,))
+            ])
+            model.summary()
+
+
+            def custom_accuracy(y_true, y_pred):
+                # Reshape predictions back to 3D
+                y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
+                y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
+                
+                # Calculate accuracy
+                accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred_3d, axis=-1),
+                                                        tf.argmax(y_true_3d, axis=-1)),
+                                                tf.float32))
+                return accuracy
+
+            model.compile(loss='mean_squared_error',
+                        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                        metrics=[custom_accuracy]) #TODO: Determine a better accuracy metric
+            
+            return model
+
+
+        testingModel1 = build_model(input_shape=(x_train.shape[1], x_train.shape[2]),lstm_units=64, learning_rate=0.001)
+                                   
+        testingModel1.fit(x_train,y_train, epochs = 10, batch_size = 32)
+
+        testingModel2 = build_model2(input_shape=(x_train.shape[1], x_train.shape[2]),lstm_units=64, learning_rate=0.001)
+                                   
+        model2 = testingModel2.fit(X_train_flat,Y_train_flat, epochs = 10, batch_size = 32)
+        
+
+        flattened_input_shape = np.prod(input_shape)
+        reshape_layer = tf.keras.layers.Reshape(input_shape, input_shape=(flattened_input_shape,))
+        reshape_output = reshape_layer(X_train_flat)
+
+        flattened_output_shape = input_shape[0] * 7  # Assuming 7 emotion categories
+
+        output_reshape = tf.keras.layers.Reshape((flattened_output_shape,))
+        output_reshape_output = output_reshape(y_train)
+
+
+
+        model = KerasRegressor(
+            build_fn=build_model,
+            input_shape=(x_train.shape[1], x_train.shape[2]),  # Set the input shape
+            lstm_units=64,
+            learning_rate=0.001,
+            epochs=10,
+            batch_size=32,
+            verbose=1
+        )
+
+        model.fit(x_train, y_train)
+
+
+
+
+
+
+        estimator.fit(X, Y, epochs=5, batch_size=16)
 
         # Create the BayesSearchCV object
+        #build_fn is the bayesian optimizer build function
         bayes_search = BayesSearchCV(
-            estimator=KerasRegressor(build_fn=self.create_model, verbose=0),
+            estimator=KerasRegressor(
+                model=self.bayes_opt_build_model,  epochs=10, batch_size=32,
+                verbose=0
+            ),
             search_spaces=search_spaces,
             n_iter=n_iter,
             cv=ps,
@@ -135,27 +249,26 @@ class LSTMEmotionPredictor:
 
         # Get the best parameters and model
         best_params = bayes_search.best_params_
-
-        best_model = self.create_model(lstm_units=best_params['lstm_units'], learning_rate=best_params['model__learning_rate'])
-        best_model.fit(x_train, y_train, 
-                       epochs=best_params['epochs'], 
-                       batch_size=best_params['batch_size'], 
-                       validation_data=(x_val, y_val),
-                       verbose=0)
-
+        self.model = self.create_model(lstm_units=best_params['lstm_units'], 
+                                    learning_rate=best_params['learning_rate'])
+        
+        # Train the best model with the original 3D data using the train method
+        history = self.train(x_train, y_train, 
+                            epochs=best_params['epochs'], 
+                            batch_size=best_params['batch_size'], 
+                            validation_data=(x_val, y_val))
 
         # Evaluate the best model
-        val_loss, val_accuracy = best_model.evaluate(x_val, y_val, verbose=0)
+        val_loss, val_accuracy = self.evaluate(x_val, y_val)
 
         return {
             'filter_method': filterMethod,
-            'best_model': best_model,
+            'best_model': self.model,
             'best_params': best_params,
-            'best_val_accuracy': val_accuracy
-            }
+            'best_val_accuracy': val_accuracy,
+            'history': history
+        }
 
-        # hyperParamMap = {} #maps each tuple combination of hyperparameters to 
-        # return hyperParamMap
 
 #%% testing out the functions - initializing
 extractor = emotionFeatureExtractor()
@@ -182,9 +295,9 @@ for testMethod in filterMethods:
     lstm_model = LSTMEmotionPredictor(input_shape)
 
     # Train the LSTM model
-    history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
+    # history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
 
-    modelMap[testMethod] = (lstm_model,history)
+    # modelMap[testMethod] = (lstm_model,history)
 
     #Finding optimized Model:
     optimized = lstm_model.hyperparamOptimize(testMethod, xTr, yTr, xVal, yVal)
