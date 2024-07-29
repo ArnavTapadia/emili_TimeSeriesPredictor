@@ -163,6 +163,7 @@ class LSTMEmotionPredictor:
             flattened_input_shape = np.prod(input_shape)
             flattened_output_shape = input_shape[0] * 7  # Assuming 7 emotion categories
 
+            #step 1 is the unflatten the input. then predict. then reflatten the output
             model = Sequential([
                 tf.keras.layers.Reshape(input_shape, input_shape=(flattened_input_shape,)),
                 LSTM(lstm_units, return_sequences=True),
@@ -171,6 +172,14 @@ class LSTMEmotionPredictor:
             ])
             model.summary()
 
+
+            def custom_mse(y_true,y_pred): #used for flattened data
+                # Reshape predictions back to 3D
+                y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
+                y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
+
+                # Calculate MSE
+                return tf.reduce_mean(tf.square(y_pred_3d - y_true_3d))
 
             def custom_accuracy(y_true, y_pred):
                 # Reshape predictions back to 3D
@@ -182,10 +191,23 @@ class LSTMEmotionPredictor:
                                                         tf.argmax(y_true_3d, axis=-1)),
                                                 tf.float32))
                 return accuracy
+            
+            def cosine_similarity_accuracy(y_true, y_pred):
+                # Reshape
+                y_true = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
+                y_pred = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
+                
+                # Compute cosine similarity for each timestamp
+                similarity = tf.reduce_sum(y_true * y_pred, axis=-1) / (
+                    tf.norm(y_true, axis=-1) * tf.norm(y_pred, axis=-1) + 1e-7
+                )
+                
+                # Average over all timestamps and batches
+                return tf.reduce_mean(similarity)
 
-            model.compile(loss='mean_squared_error',
+            model.compile(loss=custom_mse,
                         optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                        metrics=[custom_accuracy]) #TODO: Determine a better accuracy metric
+                        metrics=[custom_accuracy, cosine_similarity_accuracy]) #TODO: Determine a better accuracy metric
             
             return model
 
@@ -199,6 +221,7 @@ class LSTMEmotionPredictor:
         model2 = testingModel2.fit(X_train_flat,Y_train_flat, epochs = 10, batch_size = 32)
         
 
+        #testing code: ----
         flattened_input_shape = np.prod(input_shape)
         reshape_layer = tf.keras.layers.Reshape(input_shape, input_shape=(flattened_input_shape,))
         reshape_output = reshape_layer(X_train_flat)
@@ -207,7 +230,7 @@ class LSTMEmotionPredictor:
 
         output_reshape = tf.keras.layers.Reshape((flattened_output_shape,))
         output_reshape_output = output_reshape(y_train)
-
+        #----
 
 
         model = KerasRegressor(
