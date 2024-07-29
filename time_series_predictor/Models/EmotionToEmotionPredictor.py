@@ -58,7 +58,18 @@ class LSTMEmotionPredictor:
         # Calculate MSE
         return tf.reduce_mean(tf.square(y_pred - y_true))
 
+    @staticmethod
+    def kl_divergence_loss(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
+        assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
 
+        # Add a small epsilon to avoid division by zero or log of zero
+        epsilon = 1e-7
+
+        # Compute KL divergence for each timestamp
+        kl_div = tf.reduce_sum(y_true * (tf.math.log(y_true + epsilon) - tf.math.log(y_pred + epsilon)), axis=-1)
+
+        # Average over all timestamps and batches
+        return tf.reduce_mean(kl_div)
 
     def create_model(self, lstm_units = None, learning_rate = 0.001):
         """
@@ -81,7 +92,7 @@ class LSTMEmotionPredictor:
         # Compile the model
         model.compile(loss=self.lossFunc,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=['accuracy'])
+                    metrics=[LSTMEmotionPredictor.cosine_similarity_accuracy])
         return model
 
     def train(self, x_train, y_train, epochs=10, batch_size=32, validation_data=None):
@@ -117,22 +128,6 @@ class LSTMEmotionPredictor:
         """
         return self.model.evaluate(x_test, y_test)
     
-    #build model function just for use for bayesian optimization (keras regressor only works on 2d data)
-    def bayes_opt_build_model(self, lstm_units=64, learning_rate=0.001):
-        flattened_input_shape = np.prod(self.input_shape)
-        flattened_output_shape = self.input_shape[0] * 7  # Assuming 7 emotion categories
-
-        model = Sequential([
-            tf.keras.layers.Reshape(self.input_shape, input_shape=(flattened_input_shape,)),
-            LSTM(lstm_units, return_sequences=True),
-            TimeDistributed(Dense(7, activation='softmax')),
-            tf.keras.layers.Reshape((flattened_output_shape,))
-        ])
-        
-        model.compile(loss=self.lossFunc,
-                    optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=['accuracy'])
-        return model
 
     def hyperparamOptimize(self, filterMethod, x_train, y_train, x_val, y_val, n_iter = 5):
         """
@@ -185,7 +180,10 @@ class LSTMEmotionPredictor:
             ])
             # model.summary()
 
-    
+            model.compile(loss=custom_mse_flattened, #custom since data is flattened and we want to do per timestep
+                    optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                    metrics=[cosine_similarity_flattened])
+            
             def custom_mse_flattened(y_true,y_pred): #used for flattened data
                 # Reshape predictions back to 3D
                 y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
@@ -209,24 +207,16 @@ class LSTMEmotionPredictor:
                 # Average over all timestamps and batches
                 return LSTMEmotionPredictor.cosine_similarity_accuracy(y_true_3d,y_pred_3d)
 
-            model.compile(loss=custom_mse_flattened, #custom since data is flattened and we want to do per timestep
-                        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                        metrics=[cosine_similarity_flattened])
+            def kl_divergence_flattened(y_true, y_pred):
+                # Reshape
+                y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
+                y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
+                
+                # Average over all timestamps and batches
+                return LSTMEmotionPredictor.kl_divergence_loss(y_true_3d,y_pred_3d)
             
             return model
 
-
-        model = KerasRegressor(
-            model=build_model_flattened_data,
-            input_shape=(x_train.shape[1], x_train.shape[2]),  # Set the input shape
-            lstm_units=64,
-            learning_rate=0.001,
-            epochs=10,
-            batch_size=32,
-            verbose=1
-        )
-
-        model.fit(X, Y)
 
         # Create the BayesSearchCV object
         #build_fn is the bayesian optimizer build function
@@ -246,7 +236,7 @@ class LSTMEmotionPredictor:
             n_jobs=1,
             verbose=2,
             scoring = None
-        ) #TODO: determine best scoring method (None => scoring method of the estimator)
+        ) #find best scoring method (None => scoring method of the estimator)
 
         # Fit the BayesSearchCV object
         bayes_search.fit(X, Y)
