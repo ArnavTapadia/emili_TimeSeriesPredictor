@@ -179,10 +179,6 @@ class LSTMEmotionPredictor:
                 tf.keras.layers.Reshape((flattened_output_shape,))
             ])
             # model.summary()
-
-            model.compile(loss=custom_mse_flattened, #custom since data is flattened and we want to do per timestep
-                    optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=[cosine_similarity_flattened])
             
             def custom_mse_flattened(y_true,y_pred): #used for flattened data
                 # Reshape predictions back to 3D
@@ -215,6 +211,10 @@ class LSTMEmotionPredictor:
                 # Average over all timestamps and batches
                 return LSTMEmotionPredictor.kl_divergence_loss(y_true_3d,y_pred_3d)
             
+            model.compile(loss=custom_mse_flattened, #custom since data is flattened and we want to do per timestep Should change? to KL div
+                    optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                    metrics=[cosine_similarity_flattened])
+            
             return model
 
 
@@ -243,8 +243,8 @@ class LSTMEmotionPredictor:
 
         # Get the best parameters and model
         best_params = bayes_search.best_params_
-        self.model = self.create_model(lstm_units=best_params['lstm_units'], 
-                                    learning_rate=best_params['learning_rate'])
+        self.model = self.create_model(lstm_units=best_params['model__lstm_units'], 
+                                    learning_rate=best_params['model__learning_rate'])
         
         # Train the best model with the original 3D data using the train method
         history = self.train(x_train, y_train, 
@@ -253,7 +253,7 @@ class LSTMEmotionPredictor:
                             validation_data=(x_val, y_val))
 
         # Evaluate the best model
-        val_loss, val_accuracy = self.evaluate(x_val, y_val)
+        val_loss, val_accuracy = LSTMEmotionPredictor.evaluate(self.model, x_val, y_val)
 
         return {
             'filter_method': filterMethod,
@@ -289,12 +289,12 @@ for testMethod in filterMethods:
     lstm_model = LSTMEmotionPredictor(input_shape)
 
     # Train the LSTM model
-    # history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
+    history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
 
-    # modelMap[testMethod] = (lstm_model,history)
+    modelMap[testMethod] = (lstm_model,history)
 
     #Finding optimized Model:
-    optimized = lstm_model.hyperparamOptimize(testMethod, xTr, yTr, xVal, yVal)
+    optimized = lstm_model.hyperparamOptimize(testMethod, xTr, yTr, xVal, yVal, n_iter=3)
 
 #%% plotting
 # Set up the plot
