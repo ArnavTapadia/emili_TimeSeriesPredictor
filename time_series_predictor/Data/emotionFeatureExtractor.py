@@ -1,8 +1,10 @@
+#%%
 import numpy as np
 import pandas as pd
 import json
 import os
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
 
 class emotionFeatureExtractor:
@@ -18,6 +20,7 @@ class emotionFeatureExtractor:
         log_dir has n (= 100) time series of varying length between 1-10 minutes long
         each time series contains a log of the emotion_data with ~ 10 readings per second
         '''
+
         all_data = []
         for file_name in os.listdir(self.log_dir): #iterating through each log file
             if file_name.endswith('.json'):
@@ -122,7 +125,7 @@ class emotionFeatureExtractor:
 
         for file_data in resampled_data:
             #TODO: determine best way to split data when using timestamps and scores as input and change model
-            # if resample_method != 'times_scores':
+            if resample_method != 'times_scores':
                 for start in range(0, file_data.shape[0] - self.segment_length, self.stride): #increments of length 600(segment length), with the last 600 for the label
                     end = start + self.segment_length
                     if end + self.segment_length <= file_data.shape[0]:
@@ -130,6 +133,15 @@ class emotionFeatureExtractor:
                         Y.append(file_data[end:end + self.segment_length])
                         #Note some of X and Y are going to be mostly 0's rather than vectors
                         #X and Y should have size ~ # of minutes of data x600x7
+            else:
+                for start in range(0,int(np.ceil(file_data[-1,0])),self.stride//10):
+                    end = start + self.stride/10 #first 60 s of data
+                    if np.shape(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.stride/10)])[0]:
+                        
+                        #ensuring the Y layer will have at least 1 minute of data
+
+                        X.append(file_data[(file_data[:,0] >= start) & (file_data[:,0]<=end)])
+                        Y.append(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.stride/10)])
         X = np.array(X)
         Y = np.array(Y)
         #for each X[i], the corresponding predicted label is Y[i]
@@ -178,14 +190,70 @@ class emotionFeatureExtractor:
         '''
         for filterMethod in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
             XData,YData = self.prepare_and_segment_data(resample_method=filterMethod)
-            self.save_PreprocessedData(X=XData,Y=YData, fName=filterMethod)
+            self.save_PreprocessedData(X=XData,Y=YData, fName=filterMethod, save_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves/Preprocessed'))
 
+    def compareFilterMethods(self, filterMethodToComp = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']):
+        all_data = self.read_emotion_logs()
+        times_scores_data = [self.resample_data(file_data, 'times_scores') for file_data in all_data]
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethodToComp)+1))
+
+
+        iFile = np.random.randint(0, len(all_data) - 1) #file we want to compare
+        actualData = times_scores_data[iFile]  # correct data
+        actualData_time = actualData[:, 0]
+        actualData_features = actualData[:, 1:]  # Exclude time column
+        num_features = actualData_features.shape[1]
+
+        fig, axes = plt.subplots(num_features, 1, figsize=(10, 3 * num_features), sharex=True)
+        fig.suptitle(f'Features vs Time for Resample Method, file {iFile}')
+
+        #plot actual data
+        for i in range(num_features):
+            axes[i].plot(actualData_time, actualData_features[:, i], label='Actual Data', color=colors[0])
+
+        colors = colors[1:]
+        for resample_method, color in zip(filterMethodToComp, colors):
+            resampled_data = [self.resample_data(file_data, resample_method) for file_data in all_data]  # filter by chosen method
+
+            # Make plots of actual_data and resampled_data
+            resample_data_features = resampled_data[iFile]  # resampled data
+            resampled_data_time = np.arange(0, 0.1 * np.shape(resample_data_features)[0], 0.1)  # adding time increments to data without time
+
+            # Number of features
+            num_features = actualData_features.shape[1]
+
+            # Plot each feature for each resample method
+            for i in range(num_features):
+                axes[i].plot(resampled_data_time, resample_data_features[:, i], label=resample_method, color=color, linestyle='--')
+                
+        #label subplots
+        for i in range(num_features):       
+            axes[i].set_ylabel(f'Feature {i + 1}')
+            axes[i].legend()
+            axes[i].grid(True)
+
+    
+        axes[-1].set_xlabel('Time')
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.95)  # Adjust title position
+        axes[-1].set_xlim(0, 100)
+        plt.show()
+
+
+        
     
     #TODO: write feature extraction for padding and masking method
 
-# extractor = emotionFeatureExtractor()
+extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
+#%% Comparing filter methods
+%matplotlib widget
+extractor.compareFilterMethods(['ewma', 'binnedewma', 'ewmainterp'])
+extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'])
+
+
 # extractor.update_dataSaves()
 # for meth in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
 #     XData,YData = extractor.prepare_and_segment_data(resample_method=meth)
 
 # xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
+# %%
