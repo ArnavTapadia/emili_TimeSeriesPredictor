@@ -115,7 +115,8 @@ class LSTMEmotionPredictor:
         
         return history
 
-    def evaluate(self, x_test, y_test):
+    @staticmethod
+    def evaluate(model, x_test, y_test):
         """
         Evaluate the LSTM model on test data.
 
@@ -126,7 +127,7 @@ class LSTMEmotionPredictor:
         Returns:
         - list: Evaluation results [loss, accuracy].
         """
-        return self.model.evaluate(x_test, y_test)
+        return model.evaluate(x_test, y_test)
     
 
     def hyperparamOptimize(self, filterMethod, x_train, y_train, x_val, y_val, n_iter = 5):
@@ -273,17 +274,19 @@ extractor = emotionFeatureExtractor()
 
 #%% Testing different resampling methods
 #load data:
-filterMethods = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#, 'times_scores']
-modelMap = {}
+filterMethods = ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#,'binnedewma', 'times_scores']
+modelMap = {} #filterMethod:(model, history)
+optimizedMap = {} #filterMethod:{filterMethod,best_model,best_params,best_val_accuracy,history}
 time_series_predictorPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for testMethod in filterMethods:
+randomizedSplit_state = 3
+for filterChoice in filterMethods:
 #to load data file name is os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', fName + '_x.npy') or y.npy
-    XData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', testMethod + '_x.npy'))
-    YData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', testMethod + '_y.npy'))
+    XData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', filterChoice + '_x.npy'))
+    YData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', filterChoice + '_y.npy'))
 
 
     #creating training and testing split
-    xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
+    xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=randomizedSplit_state)
     # Create an instance of LSTMEmotionPredictor
     input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
     lstm_model = LSTMEmotionPredictor(input_shape)
@@ -291,26 +294,26 @@ for testMethod in filterMethods:
     # Train the LSTM model
     history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
 
-    modelMap[testMethod] = (lstm_model,history)
+    modelMap[filterChoice] = (lstm_model.model,history,(xTr,yTr,xVal,yVal,xTest,yTest))
 
     #Finding optimized Model:
-    optimized = lstm_model.hyperparamOptimize(testMethod, xTr, yTr, xVal, yVal, n_iter=3)
+    # optimizedMap[filterChoice] = lstm_model.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
 
 #%% plotting
 # Set up the plot
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 16))
-fig.suptitle('Model Performance Comparison', fontsize=16)
+fig.suptitle('Basic Filter Method Performance Comparison', fontsize=16)
 
 # Define colors for each model
 colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethods)))
 
 # Plot accuracy and loss for each model
-for (method, (model, history)), color in zip(modelMap.items(), colors):
+for (method, (model, history),_), color in zip(modelMap.items(), colors):
     # Plot training accuracy
-    ax1.plot(history.history['accuracy'], color=color, label=method, linewidth=2)
+    ax1.plot(history.history['cosine_similarity_accuracy'], color=color, label=method, linewidth=2)
     
     # Plot validation accuracy
-    ax2.plot(history.history['val_accuracy'], color=color, label=method, linewidth=2)
+    ax2.plot(history.history['val_cosine_similarity_accuracy'], color=color, label=method, linewidth=2)
     
     # Plot training loss
     ax3.plot(history.history['loss'], color=color, label=method, linewidth=2)
@@ -354,10 +357,13 @@ plt.show()
 
 # Print test loss and accuracy for each model
 print("\nTest Results:")
-for method, (model, history) in modelMap.items():
-    loss, accuracy = model.evaluate(xTest, yTest)
+for method, (model, history,xTest,yTest) in modelMap.items():
+    loss, accuracy = LSTMEmotionPredictor.evaluate(model, xTest, yTest)
     print(f'{method}:')
     print(f'  Test loss: {loss:.4f}')
     print(f'  Test accuracy: {accuracy:.4f}')
     print()
-# %%
+# %% comparing prediction visually
+for method,(model,history) in modelMap.items():
+    yPred = model.predict(xTest[5])
+
