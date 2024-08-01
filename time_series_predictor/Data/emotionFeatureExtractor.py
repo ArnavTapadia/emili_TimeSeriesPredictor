@@ -209,7 +209,7 @@ class emotionFeatureExtractor:
 
         #plot actual data
         for i in range(num_features):
-            axes[i].plot(actualData_time, actualData_features[:, i], label='Actual Data', color=colors[0])
+            axes[i].plot(actualData_time, actualData_features[:, i], label='Actual Data', marker = 'o', linestyle = '-', markersize=3, color=colors[0])
 
         colors = colors[1:]
         for resample_method, color in zip(filterMethodToComp, colors):
@@ -224,7 +224,7 @@ class emotionFeatureExtractor:
 
             # Plot each feature for each resample method
             for i in range(num_features):
-                axes[i].plot(resampled_data_time, resample_data_features[:, i], label=resample_method, color=color, linestyle='--')
+                axes[i].plot(resampled_data_time, resample_data_features[:, i], label=resample_method, color=color, linestyle='--', marker = 'o', markersize=1)
                 
         #label subplots
         for i in range(num_features):       
@@ -247,8 +247,10 @@ class emotionFeatureExtractor:
 extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
 #%% Comparing filter methods
 %matplotlib widget
-extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
-extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
+# extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
+# extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
+# extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
+extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 68)
 
 
 # extractor.update_dataSaves()
