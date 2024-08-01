@@ -218,7 +218,7 @@ class emotionFeatureExtractor:
             # Make plots of actual_data and resampled_data
             resample_data_features = resampled_data[iFile]  # resampled data
             resampled_data_time = np.arange(0, 0.1 * np.shape(resample_data_features)[0], 0.1)  # adding time increments to data without time
-
+            resampled_data_time = resampled_data_time[:np.shape(resample_data_features)[0]]
             # Number of features
             num_features = actualData_features.shape[1]
 
