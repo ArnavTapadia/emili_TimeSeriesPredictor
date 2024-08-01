@@ -192,13 +192,13 @@ class emotionFeatureExtractor:
             XData,YData = self.prepare_and_segment_data(resample_method=filterMethod)
             self.save_PreprocessedData(X=XData,Y=YData, fName=filterMethod, save_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves/Preprocessed'))
 
-    def compareFilterMethods(self, filterMethodToComp = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']):
+    def compareFilterMethods(self, filterMethodToComp = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth'], iFile = -1):
         all_data = self.read_emotion_logs()
         times_scores_data = [self.resample_data(file_data, 'times_scores') for file_data in all_data]
         colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethodToComp)+1))
 
-
-        iFile = np.random.randint(0, len(all_data) - 1) #file we want to compare
+        if iFile not in range(len(all_data) - 1):
+            iFile = np.random.randint(0, len(all_data) - 1) #file we want to compare
         actualData = times_scores_data[iFile]  # correct data
         actualData_time = actualData[:, 0]
         actualData_features = actualData[:, 1:]  # Exclude time column
@@ -247,8 +247,8 @@ class emotionFeatureExtractor:
 extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
 #%% Comparing filter methods
 %matplotlib widget
-extractor.compareFilterMethods(['ewma', 'binnedewma', 'ewmainterp'])
-extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'])
+extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
+extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
 
 
 # extractor.update_dataSaves()
