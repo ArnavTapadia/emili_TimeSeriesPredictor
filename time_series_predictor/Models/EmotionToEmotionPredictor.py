@@ -16,7 +16,8 @@ from sklearn.model_selection import PredefinedSplit
 from scikeras.wrappers import KerasRegressor
 #%% LSTM model class definition
 class LSTMEmotionPredictor:
-    def __init__(self, input_shape, LSTMUnits = 64, lossFunc = 'kl_divergence'):
+    def __init__(self, input_shape, LSTMUnits = 64, lossFunc = 'kl_divergence', nAddLSTMLayers=0, 
+                 nTimeDistributedLayers=0, nIntermediateDenseUnits=32):
         """
         Initialize the LSTM model.
 
@@ -27,7 +28,8 @@ class LSTMEmotionPredictor:
         self.input_shape = input_shape
         self.LSTMUnits = LSTMUnits
         self.lossFunc = lossFunc
-        self.model = self.create_model()
+        self.model = self.create_model(nAddLSTMLayers=nAddLSTMLayers, 
+                 nTimeDistributedLayers=nTimeDistributedLayers, nIntermediateDenseUnits=nIntermediateDenseUnits)
 
 
     #loss and accuracy functions
@@ -71,12 +73,17 @@ class LSTMEmotionPredictor:
         # Average over all timestamps and batches
         return tf.reduce_mean(kl_div)
 
-    def create_model(self, lstm_units = None, learning_rate = 0.001):
+    def create_model(self, lstm_units=None, learning_rate=0.001, nAddLSTMLayers=0, 
+                 nTimeDistributedLayers=0, nIntermediateDenseUnits=32):
         """
-        Build the LSTM model.
+        Build the LSTM model with configurable layers.
 
         Parameters:
-        - input_shape (tuple): Shape of the input data (excluding batch size).
+        - lstm_units: Number of units in each LSTM layer. If None, uses self.LSTMUnits.
+        - learning_rate: Learning rate for the Adam optimizer.
+        - nLSTMLayers: Number of LSTM layers to add.
+        - nTimeDistributedLayers: Number of intermediate TimeDistributed Dense layers.
+        - nIntermediateDenseUnits: Number of units in each intermediate Dense layer.
 
         Returns:
         - tf.keras.Model: Compiled LSTM model.
@@ -85,14 +92,24 @@ class LSTMEmotionPredictor:
         if lstm_units is None:
             lstm_units = self.LSTMUnits
 
-        model = Sequential([
-            LSTM(lstm_units, input_shape=self.input_shape, return_sequences=True),
-            TimeDistributed(Dense(7, activation='softmax'))
-        ])
+        model = Sequential()
+        model.add(LSTM(lstm_units, input_shape=self.input_shape, return_sequences=True))
+        # Add LSTM layers
+        for _ in range(nAddLSTMLayers):
+                model.add(LSTM(lstm_units, return_sequences=True))
+
+        # Add intermediate TimeDistributed Dense layers
+        for _ in range(nTimeDistributedLayers):
+            model.add(TimeDistributed(Dense(nIntermediateDenseUnits, activation='relu')))
+
+        # Add final TimeDistributed Dense layer
+        model.add(TimeDistributed(Dense(7, activation='softmax')))
+
         # Compile the model
         model.compile(loss=self.lossFunc,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
                     metrics=[LSTMEmotionPredictor.cosine_similarity_accuracy])
+        
         return model
 
     def train(self, x_train, y_train, epochs=10, batch_size=32, validation_data=None):
@@ -163,23 +180,44 @@ class LSTMEmotionPredictor:
         # Define the search space
         search_spaces = {
             'batch_size': Categorical([16, 32, 64, 128]),
-            'epochs': Integer(5, 30),
-            'model__lstm_units': Integer(16, 256),
-            'model__learning_rate': Real(1e-4, 1e-2, prior='log-uniform')
+            'epochs': Integer(10, 25),
+            'model__lstm_units': Integer(16, 128),
+            'model__learning_rate': Real(1e-4, 1e-2, prior='log-uniform'),
+            'model__nAddLSTMLayers': Integer(0, 2),
+            'model__nTimeDistributedLayers': Integer(0, 2),
+            'model__nIntermediateDenseUnits': Integer(16, 64)
         }
 
-        def build_model_flattened_data(input_shape, lstm_units=64, learning_rate=0.001):
+        def build_model_flattened_data(input_shape, lstm_units=64, learning_rate=0.001, nAddLSTMLayers=0, 
+                 nTimeDistributedLayers=1, nIntermediateDenseUnits=32):
+            
+
             flattened_input_shape = np.prod(input_shape)
             flattened_output_shape = input_shape[0] * 7  # Assuming 7 emotion categories
 
             #step 1 is the unflatten the input. then predict. then reflatten the output
-            model = Sequential([
-                tf.keras.layers.Reshape(input_shape, input_shape=(flattened_input_shape,)),
-                LSTM(lstm_units, return_sequences=True),
-                TimeDistributed(Dense(7, activation='softmax')),
-                tf.keras.layers.Reshape((flattened_output_shape,))
-            ])
-            # model.summary()
+
+            model = Sequential()
+            #add reshape layer from 2d to 3d
+            model.add(tf.keras.layers.Reshape(input_shape, input_shape=(flattened_input_shape,)))
+
+            #add first LSTM layer
+            model.add(LSTM(lstm_units, input_shape=input_shape, return_sequences=True))
+
+            # Add intermediary LSTM layers
+            for _ in range(nAddLSTMLayers):
+                    model.add(LSTM(lstm_units, return_sequences=True))
+
+            # Add intermediate TimeDistributed Dense layers
+            for _ in range(nTimeDistributedLayers):
+                model.add(TimeDistributed(Dense(nIntermediateDenseUnits, activation='relu')))
+
+            # Add final TimeDistributed Dense layer
+            model.add(TimeDistributed(Dense(7, activation='softmax')))
+
+            #add final reshape back to 2d
+            model.add(tf.keras.layers.Reshape((flattened_output_shape,)))
+
             
             def custom_mse_flattened(y_true,y_pred): #used for flattened data
                 # Reshape predictions back to 3D
@@ -245,7 +283,10 @@ class LSTMEmotionPredictor:
         # Get the best parameters and model
         best_params = bayes_search.best_params_
         self.model = self.create_model(lstm_units=best_params['model__lstm_units'], 
-                                    learning_rate=best_params['model__learning_rate'])
+                                    learning_rate=best_params['model__learning_rate'],
+                                    nAddLSTMLayers=best_params['model__nAddLSTMLayers'], 
+                                    nTimeDistributedLayers=best_params['model__nTimeDistributedLayers'], 
+                                    nIntermediateDenseUnits=best_params['model__nIntermediateDenseUnits'])
         
         # Train the best model with the original 3D data using the train method
         history = self.train(x_train, y_train, 
@@ -274,7 +315,7 @@ extractor = emotionFeatureExtractor()
 
 #%% Testing different resampling methods
 #load data:
-filterMethods = ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#,'binnedewma', 'times_scores']
+# filterMethods = ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#,'binnedewma', 'times_scores']
 filterMethods = ['ewma']
 modelMap = {} #filterMethod:(model, history)
 dataSplitMap = {}
@@ -297,7 +338,7 @@ for filterChoice in filterMethods:
                                   'yTest':yTest}
     # Create an instance of LSTMEmotionPredictor
     input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
-    lstm_model = LSTMEmotionPredictor(input_shape)
+    lstm_model = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32)
 
     # Train the LSTM model
     history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
@@ -305,7 +346,7 @@ for filterChoice in filterMethods:
     modelMap[filterChoice] = (lstm_model.model,history)
 
     #Finding optimized Model:
-    # optimizedMap[filterChoice] = lstm_model.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
+    optimizedMap[filterChoice] = lstm_model.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
 
 #%% plotting
 # Set up the plot
@@ -378,7 +419,11 @@ for method, (model, history) in modelMap.items():
 %matplotlib widget
 iSample = np.random.randint(0,xTest.shape[0]) #choose random sample
 num_features = 7
-fig, axes = plt.subplots(num_features, 1, figsize=(10, 15), sharex=True)
+
+#redefining colors
+colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethods)))
+
+fig, axes = plt.subplots(num_features, 1, figsize=(10, 15), sharex=True, sharey = True)
 fig.suptitle(f'yPred Features Prediction vs Time for Different Model, iSample {iSample}')
 
 #true prediction (taking for 1st filterMethod as baseline--pretty similar across all resampling methods)
@@ -391,17 +436,30 @@ for i in range(num_features):
         axes[i].plot(y_time, yTrue_features[:, i], label='yTrue', color='black', linestyle='-', marker = 'o', markersize=3)
 
 
-for (method,data), color in zip(dataSplitMap.items(), colors): #(filterMethod,{x or y Tr/Val/Test:data}),color
-    resampled_xTest = data['xTest'][iSample] #get xTest for this specific filter method
-    resampled_xTest = np.array([resampled_xTest]) #converting to correct dimensions TODO: put this into the prediction method
+for (filterMethod,data), color in zip(dataSplitMap.items(), colors): #(filterMethod,{x or y Tr/Val/Test:data}),color
+    resampled_xTest = data['xTest'][iSample] #get xTest for this specific filter filterMethod
+    resampled_xTest = np.array([resampled_xTest]) #converting to correct dimensions TODO: put this into the prediction filterMethod
 
     #making prediction
-    model,history = modelMap[method]
+    model,history = modelMap[filterMethod]
     yPred_features = model.predict(resampled_xTest)
 
 
     for i in range(num_features):
-        axes[i].plot(y_time, yPred_features[0,:, i], label=method, color=color, linestyle='--', marker = 'o', markersize=2)
+        axes[i].plot(y_time, yPred_features[0,:, i], label=filterMethod, color=color, linestyle=':', marker = 'o', markersize=2)
+
+
+    #plotting bayesianOptimized Model
+    optimizedResults = optimizedMap[filterMethod]
+    #getting optimum model
+    optimumModel = optimizedResults['best_model']
+    print(optimizedResults['best_params'])
+
+    #make prediction
+    opt_yPred_features = optimumModel.predict(resampled_xTest)
+    for i in range(num_features):
+        axes[i].plot(y_time, opt_yPred_features[0,:, i], label='optimized' + filterMethod, color='red', linestyle='--', marker = 'o', markersize=2)
+
 
 #label subplots
 for i in range(num_features):       
@@ -414,10 +472,15 @@ axes[-1].set_xlabel('Time')
 plt.tight_layout()
 plt.subplots_adjust(top=0.95)  # Adjust title position
 axes[-1].set_xlim(0, 60)
+axes[-1].set_ylim(0, 1)
 plt.show()
 
 #print model summary
+print('Baseline Model')
 model.summary()
+
+print('Optimized model')
+optimumModel.summary()
 
 
 #No need to run below -- for debugging ---------------------------
@@ -435,6 +498,7 @@ for (method,data), color in zip(dataSplitMap.items(), colors): #[filterMethd,{x 
 
     for i in range(num_features):
         axes[i].plot(resampled_data_time, resample_data_features[:, i], label=method, color=color, linestyle='--', marker = 'o', markersize=2)
+
 
 #label subplots
 for i in range(num_features):       
