@@ -275,6 +275,7 @@ extractor = emotionFeatureExtractor()
 #%% Testing different resampling methods
 #load data:
 filterMethods = ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#,'binnedewma', 'times_scores']
+# filterMethods = ['ewma']
 modelMap = {} #filterMethod:(model, history)
 dataSplitMap = {}
 optimizedMap = {} #filterMethod:{filterMethod,best_model,best_params,best_val_accuracy,history}
@@ -370,33 +371,6 @@ for method, (model, history) in modelMap.items():
     print(f'  Test loss: {loss:.4f}')
     print(f'  Test accuracy: {accuracy:.4f}')
     print()
-# %% comparing xTest visually (to determine they are the same for same iSample)
-%matplotlib widget
-iSample = np.random.randint(0,xTest.shape[0])
-num_features = 7
-fig, axes = plt.subplots(num_features, 1, figsize=(10, 20), sharex=True)
-fig.suptitle(f'xTest Features vs Time per Resample Method, iSample {iSample}')
-
-for (method,data), color in zip(dataSplitMap.items(), colors): #[filterMethd,{x or y Tr/Val/Test:data}]
-    resample_data_features = data['xTest'][iSample]
-    resampled_data_time = np.arange(0, 0.1 * np.shape(resample_data_features)[0], 0.1)
-    resampled_data_time = resampled_data_time[:np.shape(resample_data_features)[0]]
-
-    for i in range(num_features):
-        axes[i].plot(resampled_data_time, resample_data_features[:, i], label=method, color=color, linestyle='--', marker = 'o', markersize=2)
-
-#label subplots
-for i in range(num_features):       
-    axes[i].set_ylabel(f'Feature {i + 1}')
-    axes[i].legend()
-    axes[i].grid(True)
-
-
-axes[-1].set_xlabel('Time')
-plt.tight_layout()
-plt.subplots_adjust(top=0.95)  # Adjust title position
-axes[-1].set_xlim(0, 60)
-plt.show()
 
 #%% comparing yTest for specific iSample
 #(xTest proven to be same for each iSample regardless of resample method)
@@ -404,7 +378,7 @@ plt.show()
 %matplotlib widget
 iSample = np.random.randint(0,xTest.shape[0]) #choose random sample
 num_features = 7
-fig, axes = plt.subplots(num_features, 1, figsize=(5, 10), sharex=True)
+fig, axes = plt.subplots(num_features, 1, figsize=(10, 15), sharex=True)
 fig.suptitle(f'yPred Features Prediction vs Time for Different Model, iSample {iSample}')
 
 #true prediction (taking for 1st filterMethod as baseline--pretty similar across all resampling methods)
@@ -442,4 +416,30 @@ plt.subplots_adjust(top=0.95)  # Adjust title position
 axes[-1].set_xlim(0, 60)
 plt.show()
 
-# %%
+# %% comparing xTest visually (to determine they are the same for same iSample)
+%matplotlib widget
+iSample = np.random.randint(0,xTest.shape[0])
+num_features = 7
+fig, axes = plt.subplots(num_features, 1, figsize=(10, 20), sharex=True)
+fig.suptitle(f'xTest Features vs Time per Resample Method, iSample {iSample}')
+
+for (method,data), color in zip(dataSplitMap.items(), colors): #[filterMethd,{x or y Tr/Val/Test:data}]
+    resample_data_features = data['xTest'][iSample]
+    resampled_data_time = np.arange(0, 0.1 * np.shape(resample_data_features)[0], 0.1)
+    resampled_data_time = resampled_data_time[:np.shape(resample_data_features)[0]]
+
+    for i in range(num_features):
+        axes[i].plot(resampled_data_time, resample_data_features[:, i], label=method, color=color, linestyle='--', marker = 'o', markersize=2)
+
+#label subplots
+for i in range(num_features):       
+    axes[i].set_ylabel(f'Feature {i + 1}')
+    axes[i].legend()
+    axes[i].grid(True)
+
+
+axes[-1].set_xlabel('Time')
+plt.tight_layout()
+plt.subplots_adjust(top=0.95)  # Adjust title position
+axes[-1].set_xlim(0, 60)
+plt.show()
