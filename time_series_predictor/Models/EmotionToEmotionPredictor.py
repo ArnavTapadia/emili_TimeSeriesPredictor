@@ -89,7 +89,6 @@ class LSTMEmotionPredictor:
             LSTM(lstm_units, input_shape=self.input_shape, return_sequences=True),
             TimeDistributed(Dense(7, activation='softmax'))
         ])
-        model.summary()
         # Compile the model
         model.compile(loss=self.lossFunc,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
@@ -417,6 +416,11 @@ plt.subplots_adjust(top=0.95)  # Adjust title position
 axes[-1].set_xlim(0, 60)
 plt.show()
 
+#print model summary
+model.summary()
+
+
+#No need to run below -- for debugging ---------------------------
 # %% comparing xTest visually (to determine they are the same for same iSample)
 %matplotlib widget
 iSample = np.random.randint(0,xTest.shape[0])
