@@ -129,7 +129,7 @@ class LSTMEmotionPredictor:
         """
         return model.evaluate(x_test, y_test)
     
-
+    #bayesian optimization
     def hyperparamOptimize(self, filterMethod, x_train, y_train, x_val, y_val, n_iter = 5):
         """
         Perform Bayesian optimization for hyperparameter tuning of the LSTM model.
@@ -276,6 +276,7 @@ extractor = emotionFeatureExtractor()
 #load data:
 filterMethods = ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#,'binnedewma', 'times_scores']
 modelMap = {} #filterMethod:(model, history)
+dataSplitMap = {}
 optimizedMap = {} #filterMethod:{filterMethod,best_model,best_params,best_val_accuracy,history}
 time_series_predictorPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 randomizedSplit_state = 3
@@ -287,6 +288,12 @@ for filterChoice in filterMethods:
 
     #creating training and testing split
     xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=randomizedSplit_state)
+    dataSplitMap[filterChoice] = {'xTr':xTr,
+                                  'yTr':yTr,
+                                  'xVal':xVal,
+                                  'yVal':yVal,
+                                  'xTest':xTest,
+                                  'yTest':yTest}
     # Create an instance of LSTMEmotionPredictor
     input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
     lstm_model = LSTMEmotionPredictor(input_shape)
@@ -294,7 +301,7 @@ for filterChoice in filterMethods:
     # Train the LSTM model
     history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
 
-    modelMap[filterChoice] = (lstm_model.model,history,(xTr,yTr,xVal,yVal,xTest,yTest))
+    modelMap[filterChoice] = (lstm_model.model,history)
 
     #Finding optimized Model:
     # optimizedMap[filterChoice] = lstm_model.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
@@ -308,7 +315,7 @@ fig.suptitle('Basic Filter Method Performance Comparison', fontsize=16)
 colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethods)))
 
 # Plot accuracy and loss for each model
-for (method, (model, history),_), color in zip(modelMap.items(), colors):
+for (method, (model, history)), color in zip(modelMap.items(), colors):
     # Plot training accuracy
     ax1.plot(history.history['cosine_similarity_accuracy'], color=color, label=method, linewidth=2)
     
@@ -357,13 +364,82 @@ plt.show()
 
 # Print test loss and accuracy for each model
 print("\nTest Results:")
-for method, (model, history,xTest,yTest) in modelMap.items():
-    loss, accuracy = LSTMEmotionPredictor.evaluate(model, xTest, yTest)
+for method, (model, history) in modelMap.items():
+    loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xTest'], dataSplitMap[method]['yTest']) #wrong must do for each test set
     print(f'{method}:')
     print(f'  Test loss: {loss:.4f}')
     print(f'  Test accuracy: {accuracy:.4f}')
     print()
-# %% comparing prediction visually
-for method,(model,history) in modelMap.items():
-    yPred = model.predict(xTest[5])
+# %% comparing xTest visually (to determine they are the same for same iSample)
+%matplotlib widget
+iSample = np.random.randint(0,xTest.shape[0])
+num_features = 7
+fig, axes = plt.subplots(num_features, 1, figsize=(10, 20), sharex=True)
+fig.suptitle(f'xTest Features vs Time per Resample Method, iSample {iSample}')
 
+for (method,data), color in zip(dataSplitMap.items(), colors): #[filterMethd,{x or y Tr/Val/Test:data}]
+    resample_data_features = data['xTest'][iSample]
+    resampled_data_time = np.arange(0, 0.1 * np.shape(resample_data_features)[0], 0.1)
+    resampled_data_time = resampled_data_time[:np.shape(resample_data_features)[0]]
+
+    for i in range(num_features):
+        axes[i].plot(resampled_data_time, resample_data_features[:, i], label=method, color=color, linestyle='--', marker = 'o', markersize=2)
+
+#label subplots
+for i in range(num_features):       
+    axes[i].set_ylabel(f'Feature {i + 1}')
+    axes[i].legend()
+    axes[i].grid(True)
+
+
+axes[-1].set_xlabel('Time')
+plt.tight_layout()
+plt.subplots_adjust(top=0.95)  # Adjust title position
+axes[-1].set_xlim(0, 60)
+plt.show()
+
+#%% comparing yTest for specific iSample
+#(xTest proven to be same for each iSample regardless of resample method)
+#i.e. xTest and yTest array first dimension consistent across samples
+%matplotlib widget
+iSample = np.random.randint(0,xTest.shape[0]) #choose random sample
+num_features = 7
+fig, axes = plt.subplots(num_features, 1, figsize=(5, 10), sharex=True)
+fig.suptitle(f'yPred Features Prediction vs Time for Different Model, iSample {iSample}')
+
+#true prediction (taking for 1st filterMethod as baseline--pretty similar across all resampling methods)
+yTrue_features = dataSplitMap[filterMethods[0]]['yTest'][iSample]
+#y_time is equivalent for yTrue or yPred
+y_time = np.arange(0, 0.1 * np.shape(yTrue_features)[0], 0.1) #time is in incremements of 0.1s from the end of xTest
+
+#plot true baseline
+for i in range(num_features):
+        axes[i].plot(y_time, yTrue_features[:, i], label='yTrue', color='black', linestyle='-', marker = 'o', markersize=3)
+
+
+for (method,data), color in zip(dataSplitMap.items(), colors): #(filterMethod,{x or y Tr/Val/Test:data}),color
+    resampled_xTest = data['xTest'][iSample] #get xTest for this specific filter method
+    resampled_xTest = np.array([resampled_xTest]) #converting to correct dimensions TODO: put this into the prediction method
+
+    #making prediction
+    model,history = modelMap[method]
+    yPred_features = model.predict(resampled_xTest)
+
+
+    for i in range(num_features):
+        axes[i].plot(y_time, yPred_features[0,:, i], label=method, color=color, linestyle='--', marker = 'o', markersize=2)
+
+#label subplots
+for i in range(num_features):       
+    axes[i].set_ylabel(f'Feature {i + 1}')
+    axes[i].legend()
+    axes[i].grid(True)
+
+
+axes[-1].set_xlabel('Time')
+plt.tight_layout()
+plt.subplots_adjust(top=0.95)  # Adjust title position
+axes[-1].set_xlim(0, 60)
+plt.show()
+
+# %%
