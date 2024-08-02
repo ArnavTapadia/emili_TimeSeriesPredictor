@@ -338,15 +338,16 @@ for filterChoice in filterMethods:
                                   'yTest':yTest}
     # Create an instance of LSTMEmotionPredictor
     input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
-    lstm_model = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32)
+    lstm_model = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=0,  nTimeDistributedLayers=0)
 
     # Train the LSTM model
     history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
 
     modelMap[filterChoice] = (lstm_model.model,history)
 
+    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32)
     #Finding optimized Model:
-    optimizedMap[filterChoice] = lstm_model.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
+    optimizedMap[filterChoice] = optimizingModel.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
 
 #%% plotting
 # Set up the plot
