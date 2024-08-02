@@ -275,7 +275,7 @@ extractor = emotionFeatureExtractor()
 #%% Testing different resampling methods
 #load data:
 filterMethods = ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#,'binnedewma', 'times_scores']
-# filterMethods = ['ewma']
+filterMethods = ['ewma']
 modelMap = {} #filterMethod:(model, history)
 dataSplitMap = {}
 optimizedMap = {} #filterMethod:{filterMethod,best_model,best_params,best_val_accuracy,history}
