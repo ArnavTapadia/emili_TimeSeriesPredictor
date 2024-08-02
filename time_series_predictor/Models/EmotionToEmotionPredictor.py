@@ -89,6 +89,7 @@ class LSTMEmotionPredictor:
             LSTM(lstm_units, input_shape=self.input_shape, return_sequences=True),
             TimeDistributed(Dense(7, activation='softmax'))
         ])
+        model.summary()
         # Compile the model
         model.compile(loss=self.lossFunc,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
