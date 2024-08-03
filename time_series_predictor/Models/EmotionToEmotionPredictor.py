@@ -9,6 +9,7 @@ from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExt
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, TimeDistributed
+from tensorflow.keras.regularizers import l1, l2
 #hyperparam optimization imports
 from skopt import BayesSearchCV
 from skopt.space import Real, Categorical, Integer
