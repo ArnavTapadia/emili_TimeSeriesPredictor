@@ -76,7 +76,7 @@ class LSTMEmotionPredictor:
         #TODO: can also do euclidean distance reduction to make the timestamps with worse predictions more significant
         avg_euclidean_distance = tf.reduce_mean(mean_distance_per_sample, axis=0)
 
-        return avg_euclidean_distance.numpy()
+        return avg_euclidean_distance
 
     @staticmethod #TODO: check if this is correct
     def kl_divergence_loss(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
@@ -128,7 +128,7 @@ class LSTMEmotionPredictor:
         # Compile the model
         model.compile(loss=self.lossFunc,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=[LSTMEmotionPredictor.cosine_similarity_accuracy])
+                    metrics=[LSTMEmotionPredictor.custom_mse])
         
         return model
 
@@ -217,6 +217,9 @@ class LSTMEmotionPredictor:
 
             # Calculate MSE
             return LSTMEmotionPredictor.custom_mse(y_true_3d,y_pred_3d)
+        
+        def custom_scorer(y_true,y_pred): #just casting to a scalar
+            return custom_mse_flattened(y_true,y_pred).numpy()
 
         def custom_accuracy_flattened(y_true, y_pred):
             # Reshape predictions back to 3D
@@ -273,7 +276,7 @@ class LSTMEmotionPredictor:
             
             model.compile(loss=custom_mse_flattened,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=[cosine_similarity_flattened])
+                    metrics=[custom_mse_flattened])
             
             return model
 
@@ -295,7 +298,7 @@ class LSTMEmotionPredictor:
             cv=ps,
             n_jobs=1,
             verbose=2,
-            scoring = make_scorer(custom_mse_flattened, greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
+            scoring = make_scorer(custom_scorer, greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
         ) #find best scoring method (None => scoring method of the estimator)
 
         # Fit the BayesSearchCV object
