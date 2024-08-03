@@ -151,7 +151,7 @@ class LSTMEmotionPredictor:
         # Compile the model
         model.compile(loss=self.lossFunc,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=[LSTMEmotionPredictor.custom_KLDiv_mse])
+                    metrics=[LSTMEmotionPredictor.custom_mse_time])
         
         return model
 
@@ -241,6 +241,22 @@ class LSTMEmotionPredictor:
             # Calculate MSE
             return LSTMEmotionPredictor.custom_mse(y_true_3d,y_pred_3d)
         
+        def custom_mse_time_flattened(y_true,y_pred): #used for flattened data
+            # Reshape predictions back to 3D
+            y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
+            y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
+
+            # Calculate MSE
+            return LSTMEmotionPredictor.custom_mse_time(y_true_3d,y_pred_3d)
+        
+        def custom_KLDiv_mse_flattened(y_true,y_pred): #used for flattened data
+            # Reshape predictions back to 3D
+            y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
+            y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
+
+            # Calculate MSE
+            return LSTMEmotionPredictor.custom_KLDiv_mse(y_true_3d,y_pred_3d)
+
         def kl_divergence_flattened(y_true, y_pred):
             # Reshape
             y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
@@ -279,7 +295,7 @@ class LSTMEmotionPredictor:
             #add final reshape back to 2d
             model.add(tf.keras.layers.Reshape((flattened_output_shape,)))
             
-            model.compile(loss=custom_mse_flattened,
+            model.compile(loss=custom_KLDiv_mse_flattened,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
                     metrics=[custom_mse_flattened])
             
@@ -303,7 +319,7 @@ class LSTMEmotionPredictor:
             cv=ps,
             n_jobs=1,
             verbose=2,
-            scoring = make_scorer(score_func=(lambda yTrue, yPred: custom_mse_flattened(yTrue, yPred).numpy()), greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
+            scoring = make_scorer(score_func=(lambda yTrue, yPred: custom_KLDiv_mse_flattened(yTrue, yPred).numpy()), greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
         ) #find best scoring method (None => scoring method of the estimator)
 
         # Fit the BayesSearchCV object
