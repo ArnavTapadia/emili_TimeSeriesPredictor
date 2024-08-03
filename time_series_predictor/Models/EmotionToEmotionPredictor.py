@@ -35,30 +35,6 @@ class LSTMEmotionPredictor:
 
 
     #loss and accuracy functions
-    @staticmethod
-    def cosine_similarity_accuracy(y_true, y_pred): #TODO: see if this is useful
-        assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
-        # Cast tensors to the same type
-        y_true = tf.cast(y_true, dtype=tf.float32)
-        y_pred = tf.cast(y_pred, dtype=tf.float32)
-        # Compute cosine similarity for each timestamp
-        similarity = tf.reduce_sum(y_true * y_pred, axis=-1) / (
-            tf.norm(y_true, axis=-1) * tf.norm(y_pred, axis=-1) + 1e-7
-        )
-        # Average over all timestamps and batches
-        return tf.reduce_mean(similarity)
-    
-    @staticmethod
-    def custom_accuracy(y_true, y_pred):
-        assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
-        # Cast tensors to the same type
-        y_true = tf.cast(y_true, dtype=tf.float32)
-        y_pred = tf.cast(y_pred, dtype=tf.float32)        
-        # Calculate accuracy
-        accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred, axis=-1),
-                                                tf.argmax(y_true, axis=-1)),
-                                        tf.float32))
-        return accuracy
     
     @staticmethod
     def custom_mse(y_true,y_pred): #used for flattened data
@@ -220,22 +196,7 @@ class LSTMEmotionPredictor:
         
         def custom_scorer(y_true,y_pred): #just casting to a scalar
             return custom_mse_flattened(y_true,y_pred).numpy()
-
-        def custom_accuracy_flattened(y_true, y_pred):
-            # Reshape predictions back to 3D
-            y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
-            y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
-            
-            return LSTMEmotionPredictor.custom_accuracy(y_true_3d, y_pred_3d)
         
-        def cosine_similarity_flattened(y_true, y_pred):
-            # Reshape
-            y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
-            y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
-            
-            # Average over all timestamps and batches
-            return LSTMEmotionPredictor.cosine_similarity_accuracy(y_true_3d,y_pred_3d)
-
         def kl_divergence_flattened(y_true, y_pred):
             # Reshape
             y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
