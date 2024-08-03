@@ -37,7 +37,11 @@ class LSTMEmotionPredictor:
     #loss and accuracy functions
     
     @staticmethod
-    def custom_mse(y_true,y_pred): #used for flattened data
+    def custom_mse(y_true,y_pred):
+        '''
+        standard mse - euclidean distance between each prob vector, 
+        then average across all samples and all timesteps equally weighted
+        '''
         assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
         # Cast tensors to the same type
         y_true = tf.cast(y_true, dtype=tf.float32)
@@ -49,12 +53,55 @@ class LSTMEmotionPredictor:
         squared_diff = tf.square(y_pred - y_true) #squared difference for each 7 vector at each timestamp
         euclidean_distances = tf.reduce_sum(squared_diff, axis=-1) #euclidean distance squared (mse) for each timestamp
         mean_distance_per_sample = tf.reduce_mean(euclidean_distances, axis=1) #average mse for each sample
-        #TODO: can also do euclidean distance reduction to make the timestamps with worse predictions more significant
+
         avg_euclidean_distance = tf.reduce_mean(mean_distance_per_sample, axis=0)
 
         return avg_euclidean_distance
 
-    @staticmethod #TODO: check if this is correct
+    @staticmethod
+    def custom_mse_time(y_true,y_pred):
+        '''
+        squaring over time with mse (euclidean distance) between each prob vector at each timestamp,
+
+        then average across all samples and all timesteps equally weighted
+        '''
+        assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
+        # Cast tensors to the same type
+        y_true = tf.cast(y_true, dtype=tf.float32)
+        y_pred = tf.cast(y_pred, dtype=tf.float32)
+
+
+
+        # Calculate MSE
+        squared_diff = tf.square(y_pred - y_true) #squared difference for each 7 vector at each timestamp
+        euclidean_distances = tf.reduce_sum(squared_diff, axis=-1) #euclidean distance squared (mse) for each timestamp
+        mean_distance_per_sample = tf.reduce_sum(tf.square(euclidean_distances), axis=1) #mse of euclidean distances over time per sample
+
+        avg_euclidean_distance = tf.reduce_mean(mean_distance_per_sample, axis=0) #avg across samples
+
+        return avg_euclidean_distance
+    
+    def custom_KLDiv_mse(y_true,y_pred):
+        '''
+        calculate KL divergence of each prob vector
+        take square and sum for the sample (across timestamps)
+        average over the number of samples
+        '''
+        assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
+        # Cast tensors to the same type
+        y_true = tf.cast(y_true, dtype=tf.float32)
+        y_pred = tf.cast(y_pred, dtype=tf.float32)
+
+        epsilon = 1e-7
+
+        # Compute KL divergence for each timestamp
+        kl_div_time = tf.reduce_sum(y_true * (tf.math.log(y_true + epsilon) - tf.math.log(y_pred + epsilon)), axis=-1)
+        #square kl div of each timestamp and sum for each sample over all readings in the sample
+        mse_kl_div = tf.reduce_sum(tf.square(kl_div_time), axis = 1)
+
+        return tf.reduce_mean(mse_kl_div) #average across samples
+    
+    @staticmethod
     def kl_divergence_loss(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
         assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
         # Cast tensors to the same type
@@ -104,7 +151,7 @@ class LSTMEmotionPredictor:
         # Compile the model
         model.compile(loss=self.lossFunc,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=[LSTMEmotionPredictor.custom_mse])
+                    metrics=[LSTMEmotionPredictor.custom_KLDiv_mse])
         
         return model
 
@@ -194,9 +241,6 @@ class LSTMEmotionPredictor:
             # Calculate MSE
             return LSTMEmotionPredictor.custom_mse(y_true_3d,y_pred_3d)
         
-        def custom_scorer(y_true,y_pred): #just casting to a scalar
-            return custom_mse_flattened(y_true,y_pred).numpy()
-        
         def kl_divergence_flattened(y_true, y_pred):
             # Reshape
             y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
@@ -259,7 +303,7 @@ class LSTMEmotionPredictor:
             cv=ps,
             n_jobs=1,
             verbose=2,
-            scoring = make_scorer(custom_scorer, greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
+            scoring = make_scorer(score_func=(lambda yTrue, yPred: custom_mse_flattened(yTrue, yPred).numpy()), greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
         ) #find best scoring method (None => scoring method of the estimator)
 
         # Fit the BayesSearchCV object
@@ -324,7 +368,7 @@ for filterChoice in filterMethods:
                                   'yTest':yTest}
     # Create an instance of LSTMEmotionPredictor
     input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
-    lstm_model = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=0,  nTimeDistributedLayers=0)
+    lstm_model = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=0,  nTimeDistributedLayers=0, lossFunc=LSTMEmotionPredictor.custom_mse_time)
 
     # Train the LSTM model
     history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
