@@ -14,6 +14,7 @@ from tensorflow.keras.regularizers import l1, l2
 from skopt import BayesSearchCV
 from skopt.space import Real, Categorical, Integer
 from sklearn.model_selection import PredefinedSplit
+from sklearn.metrics import make_scorer
 from scikeras.wrappers import KerasRegressor
 #%% LSTM model class definition
 class LSTMEmotionPredictor:
@@ -35,9 +36,11 @@ class LSTMEmotionPredictor:
 
     #loss and accuracy functions
     @staticmethod
-    def cosine_similarity_accuracy(y_true, y_pred):
+    def cosine_similarity_accuracy(y_true, y_pred): #TODO: see if this is useful
         assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
-
+        # Cast tensors to the same type
+        y_true = tf.cast(y_true, dtype=tf.float32)
+        y_pred = tf.cast(y_pred, dtype=tf.float32)
         # Compute cosine similarity for each timestamp
         similarity = tf.reduce_sum(y_true * y_pred, axis=-1) / (
             tf.norm(y_true, axis=-1) * tf.norm(y_pred, axis=-1) + 1e-7
@@ -48,7 +51,9 @@ class LSTMEmotionPredictor:
     @staticmethod
     def custom_accuracy(y_true, y_pred):
         assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
-        
+        # Cast tensors to the same type
+        y_true = tf.cast(y_true, dtype=tf.float32)
+        y_pred = tf.cast(y_pred, dtype=tf.float32)        
         # Calculate accuracy
         accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(y_pred, axis=-1),
                                                 tf.argmax(y_true, axis=-1)),
@@ -58,13 +63,27 @@ class LSTMEmotionPredictor:
     @staticmethod
     def custom_mse(y_true,y_pred): #used for flattened data
         assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
-        # Calculate MSE
-        return tf.reduce_mean(tf.square(y_pred - y_true))
+        # Cast tensors to the same type
+        y_true = tf.cast(y_true, dtype=tf.float32)
+        y_pred = tf.cast(y_pred, dtype=tf.float32)
 
-    @staticmethod
+
+
+        # Calculate MSE
+        squared_diff = tf.square(y_pred - y_true) #squared difference for each 7 vector at each timestamp
+        euclidean_distances = tf.reduce_sum(squared_diff, axis=-1) #euclidean distance squared (mse) for each timestamp
+        mean_distance_per_sample = tf.reduce_mean(euclidean_distances, axis=1) #average mse for each sample
+        #TODO: can also do euclidean distance reduction to make the timestamps with worse predictions more significant
+        avg_euclidean_distance = tf.reduce_mean(mean_distance_per_sample, axis=0)
+
+        return avg_euclidean_distance.numpy()
+
+    @staticmethod #TODO: check if this is correct
     def kl_divergence_loss(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
         assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
-
+        # Cast tensors to the same type
+        y_true = tf.cast(y_true, dtype=tf.float32)
+        y_pred = tf.cast(y_pred, dtype=tf.float32)
         # Add a small epsilon to avoid division by zero or log of zero
         epsilon = 1e-7
 
