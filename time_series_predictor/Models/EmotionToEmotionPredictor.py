@@ -74,7 +74,7 @@ class LSTMEmotionPredictor:
         return tf.reduce_mean(kl_div)
 
     def create_model(self, lstm_units=None, learning_rate=0.001, nAddLSTMLayers=0, 
-                 nTimeDistributedLayers=0, nIntermediateDenseUnits=32):
+                 nTimeDistributedLayers=0, nIntermediateDenseUnits=32, AddTimeDistributedActivation = 'relu'):
         """
         Build the LSTM model with configurable layers.
 
@@ -100,7 +100,7 @@ class LSTMEmotionPredictor:
 
         # Add intermediate TimeDistributed Dense layers
         for _ in range(nTimeDistributedLayers):
-            model.add(TimeDistributed(Dense(nIntermediateDenseUnits, activation='relu')))
+            model.add(TimeDistributed(Dense(nIntermediateDenseUnits, activation=AddTimeDistributedActivation)))
 
         # Add final TimeDistributed Dense layer
         model.add(TimeDistributed(Dense(7, activation='softmax')))
@@ -181,15 +181,16 @@ class LSTMEmotionPredictor:
         search_spaces = {
             'batch_size': Categorical([16, 32, 64, 128]),
             'epochs': Integer(10, 25),
-            'model__lstm_units': Integer(16, 128),
+            'model__lstm_units': Integer(64, 128),
             'model__learning_rate': Real(1e-4, 1e-2, prior='log-uniform'),
-            'model__nAddLSTMLayers': Integer(0, 2),
-            'model__nTimeDistributedLayers': Integer(0, 2),
+            'model__nAddLSTMLayers': Integer(0, 5),
+            'model__nTimeDistributedLayers': Integer(0, 5),
+            'model__AddTimeDistributedActivation': Categorical(['relu', 'tanh', 'sigmoid']),
             'model__nIntermediateDenseUnits': Integer(16, 64)
         }
 
         def build_model_flattened_data(input_shape, lstm_units=64, learning_rate=0.001, nAddLSTMLayers=0, 
-                 nTimeDistributedLayers=1, nIntermediateDenseUnits=32):
+                 nTimeDistributedLayers=1, nIntermediateDenseUnits=32, AddTimeDistributedActivation = 'relu'):
             
 
             flattened_input_shape = np.prod(input_shape)
@@ -210,7 +211,7 @@ class LSTMEmotionPredictor:
 
             # Add intermediate TimeDistributed Dense layers
             for _ in range(nTimeDistributedLayers):
-                model.add(TimeDistributed(Dense(nIntermediateDenseUnits, activation='relu')))
+                model.add(TimeDistributed(Dense(nIntermediateDenseUnits, activation=AddTimeDistributedActivation)))
 
             # Add final TimeDistributed Dense layer
             model.add(TimeDistributed(Dense(7, activation='softmax')))
@@ -286,7 +287,8 @@ class LSTMEmotionPredictor:
                                     learning_rate=best_params['model__learning_rate'],
                                     nAddLSTMLayers=best_params['model__nAddLSTMLayers'], 
                                     nTimeDistributedLayers=best_params['model__nTimeDistributedLayers'], 
-                                    nIntermediateDenseUnits=best_params['model__nIntermediateDenseUnits'])
+                                    nIntermediateDenseUnits=best_params['model__nIntermediateDenseUnits'],
+                                    AddTimeDistributedActivation=best_params['model__AddTimeDistributedActivation'])
         
         # Train the best model with the original 3D data using the train method
         history = self.train(x_train, y_train, 
