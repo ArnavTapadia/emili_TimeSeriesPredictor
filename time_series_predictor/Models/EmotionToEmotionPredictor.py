@@ -226,7 +226,7 @@ class LSTMEmotionPredictor:
             'epochs': Integer(10, 25),
             'model__lstm_units': Integer(64, 128),
             'model__learning_rate': Real(1e-4, 1e-2, prior='log-uniform'),
-            'model__nAddLSTMLayers': Integer(0, 5),
+            'model__nAddLSTMLayers': Integer(0, 3),
             'model__nTimeDistributedLayers': Integer(0, 5),
             'model__AddTimeDistributedActivation': Categorical(['relu', 'tanh', 'sigmoid']),
             'model__nIntermediateDenseUnits': Integer(16, 64)
@@ -295,9 +295,9 @@ class LSTMEmotionPredictor:
             #add final reshape back to 2d
             model.add(tf.keras.layers.Reshape((flattened_output_shape,)))
             
-            model.compile(loss=custom_KLDiv_mse_flattened,
+            model.compile(loss=custom_mse_time_flattened,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=[custom_mse_flattened])
+                    metrics=[custom_mse_time_flattened])
             
             return model
 
@@ -319,7 +319,7 @@ class LSTMEmotionPredictor:
             cv=ps,
             n_jobs=1,
             verbose=2,
-            scoring = make_scorer(score_func=(lambda yTrue, yPred: custom_KLDiv_mse_flattened(yTrue, yPred).numpy()), greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
+            scoring = make_scorer(score_func=(lambda yTrue, yPred: custom_mse_time_flattened(yTrue, yPred).numpy()), greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
         ) #find best scoring method (None => scoring method of the estimator)
 
         # Fit the BayesSearchCV object
