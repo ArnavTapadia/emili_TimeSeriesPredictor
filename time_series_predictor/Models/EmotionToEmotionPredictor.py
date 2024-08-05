@@ -363,7 +363,7 @@ for filterChoice in filterMethods:
 
     modelMap[filterChoice] = (lstm_model.model,history)
 
-    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32,lossFunc='kl_divergence')
+    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32,lossFunc=LSTMEmotionPredictor.custom_mse_time)
     #Finding optimized Model:
     optimizedMap[filterChoice] = optimizingModel.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
 
@@ -472,6 +472,9 @@ plt.show()
 # Print model summaries
 print('\nBaseline Model')
 model.summary()
+
+print('\nOptimized Model')
+optimumModel.summary()
 
 #%%
 #evaluate loss on training and val for the models 
