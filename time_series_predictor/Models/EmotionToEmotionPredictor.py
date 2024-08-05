@@ -334,12 +334,11 @@ extractor = emotionFeatureExtractor()
 #%% Testing different resampling methods
 #load data:
 # filterMethods = ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#,'binnedewma', 'times_scores']
-filterMethods = ['ewma']
+filterMethods = ['ewma', 'ewmainterp']
 modelMap = {} #filterMethod:(model, history)
 dataSplitMap = {}
 optimizedMap = {} #filterMethod:{filterMethod,best_model,best_params,best_val_accuracy,history}
 time_series_predictorPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-randomizedSplit_state = 3
 for filterChoice in filterMethods:
 #to load data file name is os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', fName + '_x.npy') or y.npy
     XData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', filterChoice + '_x.npy'))
@@ -347,7 +346,7 @@ for filterChoice in filterMethods:
 
 
     #creating training and testing split
-    xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=randomizedSplit_state)
+    xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData)
     dataSplitMap[filterChoice] = {'xTr':xTr,
                                   'yTr':yTr,
                                   'xVal':xVal,
@@ -370,7 +369,7 @@ for filterChoice in filterMethods:
 #%% plotting
 # Set up the plot
 fig, ax1 = plt.subplots(1, figsize=(10, 8))
-fig.suptitle('Basic Filter Method Performance Comparison', fontsize=16)
+fig.suptitle('Model Performance Comparison vs Training Epochs', fontsize=16)
 
 # Define colors for each model
 colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethods)))
