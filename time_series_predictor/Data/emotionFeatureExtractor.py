@@ -204,7 +204,7 @@ class emotionFeatureExtractor:
         actualData_features = actualData[:, 1:]  # Exclude time column
         num_features = actualData_features.shape[1]
 
-        fig, axes = plt.subplots(num_features, 1, figsize=(10, 3 * num_features), sharex=True)
+        fig, axes = plt.subplots(num_features, 1, figsize=(10, 3 * num_features), sharex=True, sharey = True)
         fig.suptitle(f'Features vs Time for Resample Method, file {iFile}')
 
         #plot actual data
@@ -237,6 +237,7 @@ class emotionFeatureExtractor:
         plt.tight_layout()
         plt.subplots_adjust(top=0.95)  # Adjust title position
         axes[-1].set_xlim(0, 100)
+        axes[-1].set_ylim(0, 1)
         plt.show()
 
 
@@ -244,14 +245,14 @@ class emotionFeatureExtractor:
     
     #TODO: write feature extraction for padding and masking method
 
-# extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
-# #%% Comparing filter methods
-# %matplotlib widget
-# # extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
-# # extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
-# # extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
-# # extractor.compareFilterMethods()
-# extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 68)
+extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
+#%% Comparing filter methods
+%matplotlib widget
+# extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
+# extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
+# extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
+# extractor.compareFilterMethods()
+extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interp_ewmaSmooth','interpolation'], iFile = 68)
 
 
 # extractor.update_dataSaves()
