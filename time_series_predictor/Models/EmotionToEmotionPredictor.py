@@ -335,7 +335,7 @@ extractor = emotionFeatureExtractor()
 #%% Testing different resampling methods
 #load data:
 # filterMethods = ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth']#,'binnedewma', 'times_scores']
-filterMethods = ['ewma', 'ewmainterp']
+filterMethods = ['ewmainterp']
 modelMap = {} #filterMethod:(model, history)
 dataSplitMap = {}
 optimizedMap = {} #filterMethod:{filterMethod,best_model,best_params,best_val_accuracy,history}
@@ -363,119 +363,123 @@ for filterChoice in filterMethods:
 
     modelMap[filterChoice] = (lstm_model.model,history)
 
-    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32,lossFunc=LSTMEmotionPredictor.custom_mse_time)
+    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32,lossFunc='kl_divergence')
     #Finding optimized Model:
     optimizedMap[filterChoice] = optimizingModel.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
 
 #%% plotting
 # Set up the plot
-fig, ax1 = plt.subplots(1, figsize=(10, 8))
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True, sharey=True)
 fig.suptitle('Model Performance Comparison vs Training Epochs', fontsize=16)
 
 # Define colors for each model
-colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethods)))
+num_models = len(filterMethods)
+colors = plt.cm.rainbow(np.linspace(0, 1, num_models))
+color_dict = {method: colors[i] for i, method in enumerate(filterMethods)}
 
-# Plot accuracy and loss for each model
-for (method, (model, history)), color in zip(modelMap.items(), colors):
-    # Plot training loss
-    ax1.plot(history.history['loss'], color=color, label=method, linewidth=2, linestyle = '-')
+# Create dictionaries for base and optimized models
+base_models = {method: modelMap[method] for method in filterMethods}
+optimized_models = {f"optimized_{method}": (optimizedMap[method]['best_model'], optimizedMap[method]['history']) for method in filterMethods}
 
-    #plot optimized model loss
-    ax1.plot(optimizedMap[method]['history'].history['loss'], color='red', label='optimized' + method, linewidth=2, linestyle = '--')    
+# Function to plot models
+def plot_models(ax, models, title):
+    for method, (model, history) in models.items():
+        base_method = method.replace("optimized_", "")
+        color = color_dict[base_method]
+        
+        # Plot training loss
+        ax.plot(history.history['loss'], color=color, 
+                label=f'{method} (train)', 
+                linewidth=2, linestyle='-')
+        
+        # Plot validation loss
+        ax.plot(history.history['val_loss'], color=color, 
+                label=f'{method} (val)', 
+                linewidth=2, linestyle='--')
     
-    # Plot validation loss
-    ax1.plot(history.history['val_loss'], color=color, label= 'val ' + method, linewidth=2, linestyle = '-')
-    
-    #plot optimized model val loss   
-    ax1.plot(optimizedMap[method]['history'].history['val_loss'], color='red', label='val ' + 'optimized' + method, linewidth=2, linestyle = '--')    
+    ax.set_title(title, fontsize=14)
+    ax.set_ylabel('Loss', fontsize=12)
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
+    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.set_yscale('log')  # Set y-axis to logarithmic scale for better visibility
 
-# Customize training loss subplot
-ax1.set_title('MSE Across Time Loss', fontsize=14)
-ax1.set_ylabel('Loss', fontsize=12)
-ax1.set_xlabel('Epoch', fontsize=12)
-ax1.legend(loc='upper right', fontsize=10)
-ax1.grid(True, alpha=0.7)
+# Plot base models
+plot_models(ax1, base_models, 'Base Models: Training and Validation Loss')
+
+# Plot optimized models
+plot_models(ax2, optimized_models, 'Optimized Models: Training and Validation Loss')
+
+# Set common x-label
+fig.text(0.5, 0.04, 'Epoch', ha='center', fontsize=12)
 
 # Adjust layout and display
 plt.tight_layout()
 plt.show()
 
-#%% comparing yTest for specific iSample
-#(xTest proven to be same for each iSample regardless of resample method)
-#i.e. xTest and yTest array first dimension consistent across samples
+#%% comparing yVal for specific iSample
 %matplotlib widget
-iSample = np.random.randint(0,xTest.shape[0]) #choose random sample
+iSample = np.random.randint(0, xVal.shape[0])  # choose random sample
 num_features = 7
 
-#redefining colors
-colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethods)))
+# Define colors for each model (base and optimized)
+num_colors = len(filterMethods) * 2  # For both base and optimized models
+colors = plt.cm.rainbow(np.linspace(0, 1, num_colors))
 
-fig, axes = plt.subplots(num_features, 1, figsize=(10, 15), sharex=True, sharey = True)
-fig.suptitle(f'yPred Features Prediction vs Time for Different Model, iSample {iSample}')
+fig, axes = plt.subplots(num_features, 1, figsize=(12, 10), sharex=True, sharey=True)
+fig.suptitle(f'yPred Features Prediction vs Time for Different Models, iSample {iSample}')
 
-#true prediction (taking for 1st filterMethod as baseline--pretty similar across all resampling methods)
-yTrue_features = dataSplitMap[filterMethods[0]]['yTest'][iSample]
-#y_time is equivalent for yTrue or yPred
-y_time = np.arange(0, 0.1 * np.shape(yTrue_features)[0], 0.1) #time is in incremements of 0.1s from the end of xTest
+# True prediction (taking for 1st filterMethod as baseline)
+yTrue_features = dataSplitMap[filterMethods[0]]['yVal'][iSample]
+y_time = np.arange(0, 0.1 * np.shape(yTrue_features)[0], 0.1)
 
-#plot true baseline
+# Plot true baseline
 for i in range(num_features):
-        axes[i].plot(y_time, yTrue_features[:, i], label='yTrue', color='black', linestyle='-', marker = 'o', markersize=3)
+    axes[i].plot(y_time, yTrue_features[:, i], label='yTrue', color='black', linestyle='-', marker='o', markersize=3)
 
+for idx, (filterMethod, data) in enumerate(dataSplitMap.items()):
+    resampled_xVal = np.array([data['xVal'][iSample]])
 
-for (filterMethod,data), color in zip(dataSplitMap.items(), colors): #(filterMethod,{x or y Tr/Val/Test:data}),color
-    resampled_xTest = data['xTest'][iSample] #get xTest for this specific filter filterMethod
-    resampled_xTest = np.array([resampled_xTest]) #converting to correct dimensions TODO: put this into the prediction filterMethod
-
-    #making prediction
-    model,history = modelMap[filterMethod]
-    yPred_features = model.predict(resampled_xTest)
-
+    # Base model
+    model, _ = modelMap[filterMethod]
+    yPred_features = model.predict(resampled_xVal)
 
     for i in range(num_features):
-        axes[i].plot(y_time, yPred_features[0,:, i], label=filterMethod, color=color, linestyle=':', marker = 'o', markersize=2)
+        axes[i].plot(y_time, yPred_features[0, :, i], label=filterMethod, color=colors[idx*2], linestyle='-', marker='o', markersize=2)
 
-
-    #plotting bayesianOptimized Model
+    # Optimized model
     optimizedResults = optimizedMap[filterMethod]
-    #getting optimum model
     optimumModel = optimizedResults['best_model']
-    print(optimizedResults['best_params'])
+    opt_yPred_features = optimumModel.predict(resampled_xVal)
 
-    #make prediction
-    opt_yPred_features = optimumModel.predict(resampled_xTest)
     for i in range(num_features):
-        axes[i].plot(y_time, opt_yPred_features[0,:, i], label='optimized' + filterMethod, color='red', linestyle='--', marker = 'o', markersize=2)
+        axes[i].plot(y_time, opt_yPred_features[0, :, i], label=f'optimized_{filterMethod}', color=colors[idx*2+1], linestyle='-', marker='o', markersize=2)
 
+    print(f"{filterMethod} - Best params:", optimizedResults['best_params'])
 
-#label subplots
-for i in range(num_features):       
+# Label subplots
+for i in range(num_features):
     axes[i].set_ylabel(f'Feature {i + 1}')
-    axes[i].legend()
+    axes[i].legend(loc='center left', bbox_to_anchor=(1, 0.5))
     axes[i].grid(True)
-
 
 axes[-1].set_xlabel('Time')
 plt.tight_layout()
-plt.subplots_adjust(top=0.95)  # Adjust title position
+plt.subplots_adjust(top=0.95, right=0.8)  # Adjust title position and make room for legend
 axes[-1].set_xlim(0, 60)
 axes[-1].set_ylim(0, 1)
 plt.show()
 
-#print model summary
-print('Baseline Model')
+# Print model summaries
+print('\nBaseline Model')
 model.summary()
 
-print('Optimized model')
-optimumModel.summary()
-
-#%% Evaluate the model on test data
-
-# Print test loss and accuracy for each model
-print("\nTest Results:")
+#%%
+#evaluate loss on training and val for the models 
 for method, (model, history) in modelMap.items():
-    loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xTest'], dataSplitMap[method]['yTest']) #wrong must do for each test set
+    loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xTr'], dataSplitMap[method]['yTr'])
     print(f'{method}:')
-    print(f'  Test loss: {loss:.4f}')
-    print(f'  Test accuracy: {accuracy:.4f}')
-    print()
+    print(f'  Training loss: {loss:.4f}')
+    loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xVal'], dataSplitMap[method]['yVal'])
+    print(f'  Val loss: {loss:.4f}')
+
+# %%
