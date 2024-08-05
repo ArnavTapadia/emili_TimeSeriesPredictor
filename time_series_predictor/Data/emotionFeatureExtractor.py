@@ -245,11 +245,12 @@ class emotionFeatureExtractor:
     #TODO: write feature extraction for padding and masking method
 
 # extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
-#%% Comparing filter methods
+# #%% Comparing filter methods
 # %matplotlib widget
 # # extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
 # # extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
 # # extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
+# # extractor.compareFilterMethods()
 # extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 68)
 
 
