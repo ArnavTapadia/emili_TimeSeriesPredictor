@@ -70,8 +70,6 @@ class LSTMEmotionPredictor:
         y_true = tf.cast(y_true, dtype=tf.float32)
         y_pred = tf.cast(y_pred, dtype=tf.float32)
 
-
-
         # Calculate MSE
         squared_diff = tf.square(y_pred - y_true) #squared difference for each 7 vector at each timestamp
         euclidean_distances = tf.reduce_sum(squared_diff, axis=-1) #euclidean distance squared (mse) for each timestamp
@@ -482,33 +480,3 @@ model.summary()
 print('Optimized model')
 optimumModel.summary()
 
-
-#No need to run below -- for debugging ---------------------------
-# %% comparing xTest visually (to determine they are the same for same iSample)
-%matplotlib widget
-iSample = np.random.randint(0,xTest.shape[0])
-num_features = 7
-fig, axes = plt.subplots(num_features, 1, figsize=(10, 20), sharex=True)
-fig.suptitle(f'xTest Features vs Time per Resample Method, iSample {iSample}')
-
-for (method,data), color in zip(dataSplitMap.items(), colors): #[filterMethd,{x or y Tr/Val/Test:data}]
-    resample_data_features = data['xTest'][iSample]
-    resampled_data_time = np.arange(0, 0.1 * np.shape(resample_data_features)[0], 0.1)
-    resampled_data_time = resampled_data_time[:np.shape(resample_data_features)[0]]
-
-    for i in range(num_features):
-        axes[i].plot(resampled_data_time, resample_data_features[:, i], label=method, color=color, linestyle='--', marker = 'o', markersize=2)
-
-
-#label subplots
-for i in range(num_features):       
-    axes[i].set_ylabel(f'Feature {i + 1}')
-    axes[i].legend()
-    axes[i].grid(True)
-
-
-axes[-1].set_xlabel('Time')
-plt.tight_layout()
-plt.subplots_adjust(top=0.95)  # Adjust title position
-axes[-1].set_xlim(0, 60)
-plt.show()
