@@ -371,7 +371,7 @@ for filterChoice in filterMethods:
 
 #%% plotting
 # Set up the plot
-fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 16))
+fig, ax1 = plt.subplots(1, figsize=(10, 8))
 fig.suptitle('Basic Filter Method Performance Comparison', fontsize=16)
 
 # Define colors for each model
@@ -379,45 +379,24 @@ colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethods)))
 
 # Plot accuracy and loss for each model
 for (method, (model, history)), color in zip(modelMap.items(), colors):
-    # Plot training accuracy
-    ax1.plot(history.history['cosine_similarity_accuracy'], color=color, label=method, linewidth=2)
-    
-    # Plot validation accuracy
-    ax2.plot(history.history['val_cosine_similarity_accuracy'], color=color, label=method, linewidth=2)
-    
     # Plot training loss
-    ax3.plot(history.history['loss'], color=color, label=method, linewidth=2)
+    ax1.plot(history.history['loss'], color=color, label=method, linewidth=2, linestyle = '-')
+
+    #plot optimized model loss
+    ax1.plot(optimizedMap[method]['history'].history['loss'], color='red', label='optimized' + method, linewidth=2, linestyle = '--')    
     
     # Plot validation loss
-    ax4.plot(history.history['val_loss'], color=color, label=method, linewidth=2)
-
-# Customize training accuracy subplot
-ax1.set_title('Training Accuracy', fontsize=14)
-ax1.set_ylabel('Accuracy', fontsize=12)
-ax1.set_xlabel('Epoch', fontsize=12)
-ax1.legend(loc='lower right', fontsize=10)
-ax1.grid(True, linestyle='--', alpha=0.7)
-
-# Customize validation accuracy subplot
-ax2.set_title('Validation Accuracy', fontsize=14)
-ax2.set_ylabel('Accuracy', fontsize=12)
-ax2.set_xlabel('Epoch', fontsize=12)
-ax2.legend(loc='lower right', fontsize=10)
-ax2.grid(True, linestyle='--', alpha=0.7)
+    ax1.plot(history.history['val_loss'], color=color, label= 'val ' + method, linewidth=2, linestyle = '-')
+    
+    #plot optimized model val loss   
+    ax1.plot(optimizedMap[method]['history'].history['val_loss'], color='red', label='val ' + 'optimized' + method, linewidth=2, linestyle = '--')    
 
 # Customize training loss subplot
-ax3.set_title('Training Loss', fontsize=14)
-ax3.set_ylabel('Loss', fontsize=12)
-ax3.set_xlabel('Epoch', fontsize=12)
-ax3.legend(loc='upper right', fontsize=10)
-ax3.grid(True, linestyle='--', alpha=0.7)
-
-# Customize validation loss subplot
-ax4.set_title('Validation Loss', fontsize=14)
-ax4.set_ylabel('Loss', fontsize=12)
-ax4.set_xlabel('Epoch', fontsize=12)
-ax4.legend(loc='upper right', fontsize=10)
-ax4.grid(True, linestyle='--', alpha=0.7)
+ax1.set_title('MSE Across Time Loss', fontsize=14)
+ax1.set_ylabel('Loss', fontsize=12)
+ax1.set_xlabel('Epoch', fontsize=12)
+ax1.legend(loc='upper right', fontsize=10)
+ax1.grid(True, alpha=0.7)
 
 # Adjust layout and display
 plt.tight_layout()
