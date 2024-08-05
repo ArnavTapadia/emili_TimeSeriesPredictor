@@ -247,12 +247,12 @@ class emotionFeatureExtractor:
 
 extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
 #%% Comparing filter methods
-%matplotlib widget
-# extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
-# extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
-# extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
+# %matplotlib widget
+# # extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
+# # extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
+# # extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
 # extractor.compareFilterMethods()
-extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interp_ewmaSmooth','interpolation'], iFile = 68)
+# extractor.compareFilterMethods(['ewma', 'interpolation', 'interp_ewmaSmooth','ewmainterp'], iFile = 68)
 
 
 # extractor.update_dataSaves()
