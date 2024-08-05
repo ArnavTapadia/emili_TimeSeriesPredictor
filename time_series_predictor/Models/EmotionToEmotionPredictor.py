@@ -18,21 +18,6 @@ from sklearn.metrics import make_scorer
 from scikeras.wrappers import KerasRegressor
 #%% LSTM model class definition
 class LSTMEmotionPredictor:
-    def __init__(self, input_shape, LSTMUnits = 64, lossFunc = 'kl_divergence', nAddLSTMLayers=0, 
-                 nTimeDistributedLayers=0, nIntermediateDenseUnits=32):
-        """
-        Initialize the LSTM model.
-
-        Parameters:
-        - input_shape (tuple): Shape of the input data (excluding batch size).
-        """
-
-        self.input_shape = input_shape
-        self.LSTMUnits = LSTMUnits
-        self.lossFunc = lossFunc
-        self.model = self.create_model(nAddLSTMLayers=nAddLSTMLayers, 
-                 nTimeDistributedLayers=nTimeDistributedLayers, nIntermediateDenseUnits=nIntermediateDenseUnits)
-
 
     #loss and accuracy functions
     
@@ -113,6 +98,22 @@ class LSTMEmotionPredictor:
 
         # Average over all timestamps and batches
         return tf.reduce_mean(kl_div)
+
+    def __init__(self, input_shape, LSTMUnits = 64, lossFunc = custom_mse_time, nAddLSTMLayers=0, 
+                 nTimeDistributedLayers=0, nIntermediateDenseUnits=32):
+        """
+        Initialize the LSTM model.
+
+        Parameters:
+        - input_shape (tuple): Shape of the input data (excluding batch size).
+        """
+
+        self.input_shape = input_shape
+        self.LSTMUnits = LSTMUnits
+        self.lossFunc = lossFunc
+        self.model = self.create_model(nAddLSTMLayers=nAddLSTMLayers, 
+                 nTimeDistributedLayers=nTimeDistributedLayers, nIntermediateDenseUnits=nIntermediateDenseUnits)
+
 
     def create_model(self, lstm_units=None, learning_rate=0.001, nAddLSTMLayers=0, 
                  nTimeDistributedLayers=0, nIntermediateDenseUnits=32, AddTimeDistributedActivation = 'relu'):
@@ -362,7 +363,7 @@ for filterChoice in filterMethods:
 
     modelMap[filterChoice] = (lstm_model.model,history)
 
-    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32)
+    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32,lossFunc=LSTMEmotionPredictor.custom_mse_time)
     #Finding optimized Model:
     optimizedMap[filterChoice] = optimizingModel.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
 
@@ -398,17 +399,6 @@ ax1.grid(True, alpha=0.7)
 # Adjust layout and display
 plt.tight_layout()
 plt.show()
-
-#%% Evaluate the model on test data
-
-# Print test loss and accuracy for each model
-print("\nTest Results:")
-for method, (model, history) in modelMap.items():
-    loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xTest'], dataSplitMap[method]['yTest']) #wrong must do for each test set
-    print(f'{method}:')
-    print(f'  Test loss: {loss:.4f}')
-    print(f'  Test accuracy: {accuracy:.4f}')
-    print()
 
 #%% comparing yTest for specific iSample
 #(xTest proven to be same for each iSample regardless of resample method)
@@ -479,3 +469,13 @@ model.summary()
 print('Optimized model')
 optimumModel.summary()
 
+#%% Evaluate the model on test data
+
+# Print test loss and accuracy for each model
+print("\nTest Results:")
+for method, (model, history) in modelMap.items():
+    loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xTest'], dataSplitMap[method]['yTest']) #wrong must do for each test set
+    print(f'{method}:')
+    print(f'  Test loss: {loss:.4f}')
+    print(f'  Test accuracy: {accuracy:.4f}')
+    print()
