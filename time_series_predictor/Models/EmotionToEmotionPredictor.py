@@ -232,38 +232,8 @@ class LSTMEmotionPredictor:
             'model__nIntermediateDenseUnits': Integer(16, 64)
         }
 
-        #defining custom loss functions
-        def custom_mse_flattened(y_true,y_pred): #used for flattened data
-            # Reshape predictions back to 3D
-            y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
-            y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
-
-            # Calculate MSE
-            return LSTMEmotionPredictor.custom_mse(y_true_3d,y_pred_3d)
-        
-        def custom_mse_time_flattened(y_true,y_pred): #used for flattened data
-            # Reshape predictions back to 3D
-            y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
-            y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
-
-            # Calculate MSE
-            return LSTMEmotionPredictor.custom_mse_time(y_true_3d,y_pred_3d)
-        
-        def custom_KLDiv_mse_flattened(y_true,y_pred): #used for flattened data
-            # Reshape predictions back to 3D
-            y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
-            y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
-
-            # Calculate MSE
-            return LSTMEmotionPredictor.custom_KLDiv_mse(y_true_3d,y_pred_3d)
-
-        def kl_divergence_flattened(y_true, y_pred):
-            # Reshape
-            y_true_3d = tf.reshape(y_true, (-1, y_train.shape[1], y_train.shape[2]))
-            y_pred_3d = tf.reshape(y_pred, (-1, y_train.shape[1], y_train.shape[2]))
-            
-            # Average over all timestamps and batches
-            return LSTMEmotionPredictor.kl_divergence_loss(y_true_3d,y_pred_3d)
+        #defining custom loss functions to work with flattened data
+        reshapeLambda = lambda y: tf.reshape(y, (-1, y_train.shape[1], y_train.shape[2]))
 
         def build_model_flattened_data(input_shape, lstm_units=64, learning_rate=0.001, nAddLSTMLayers=0, 
                  nTimeDistributedLayers=1, nIntermediateDenseUnits=32, AddTimeDistributedActivation = 'relu'):
@@ -294,15 +264,19 @@ class LSTMEmotionPredictor:
 
             #add final reshape back to 2d
             model.add(tf.keras.layers.Reshape((flattened_output_shape,)))
+
+            #defining loss function
+            flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.custom_mse_time(reshapeLambda(y_true), reshapeLambda(y_pred))
             
-            model.compile(loss=custom_mse_time_flattened,
+            model.compile(loss=flattenedLossFunction,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=[custom_mse_time_flattened])
+                    metrics=[flattenedLossFunction])
             
             return model
 
 
         # Create the BayesSearchCV object
+        flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.custom_mse_time(reshapeLambda(y_true), reshapeLambda(y_pred))
         #build_fn is the bayesian optimizer build function
         bayes_search = BayesSearchCV(
             estimator=KerasRegressor(
@@ -319,7 +293,7 @@ class LSTMEmotionPredictor:
             cv=ps,
             n_jobs=1,
             verbose=2,
-            scoring = make_scorer(score_func=(lambda yTrue, yPred: custom_mse_time_flattened(yTrue, yPred).numpy()), greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
+            scoring = make_scorer(score_func=(lambda yTrue, yPred: flattenedLossFunction(yTrue,yPred).numpy()), greater_is_better=False) #'neg_mean_squared_error' but works with flattened timestamp data
         ) #find best scoring method (None => scoring method of the estimator)
 
         # Fit the BayesSearchCV object
