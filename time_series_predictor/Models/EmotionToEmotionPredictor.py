@@ -511,15 +511,35 @@ def kl_div_averageAcrossTimestamps(y_true, y_pred): #only really used for bayesi
     # Compute KL divergence for each timestamp
     kl_div = tf.reduce_sum(y_true * (tf.math.log(y_true + epsilon) - tf.math.log(y_pred + epsilon)), axis=-1)
 
-    # Average over all timestamps and batches
+    # Average over all samples
     return tf.reduce_mean(kl_div, axis = 0) #should return a 600x1 vector
+
+def mse_acrossTimestamps(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
+    assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
+
+    # Cast tensors to the same type
+    y_true = tf.cast(y_true, dtype=tf.float32)
+    y_pred = tf.cast(y_pred, dtype=tf.float32)
+
+    # Calculate MSE
+    squared_diff = tf.square(y_pred - y_true) #squared difference for each 7 vector at each timestamp
+    euclidean_distances = tf.reduce_sum(squared_diff, axis=-1) #euclidean distance squared (mse) for each timestamp
+
+    return tf.reduce_mean(euclidean_distances, axis = 0)
+
 
 baseModel = base_models['ewmainterp'][0]
 optimizedModel = optimized_models['optimized_ewmainterp'][0]
 
+print('\nKL Loss averaged across all timesteps in validation set')
 print('Mean model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal,tf.convert_to_tensor(meanPredictor(xVal))).numpy())
 print('Base model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, baseModel.predict(xVal)).numpy())
 print('Optimized model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, optimizedModel.predict(xVal)).numpy())
+
+print('\nMSE loss first averaged over time then samples')
+print('Mean model mse Loss', LSTMEmotionPredictor.custom_mse(yVal,tf.convert_to_tensor(meanPredictor(xVal))).numpy())
+print('Base model mse Loss', LSTMEmotionPredictor.custom_mse(yVal, baseModel.predict(xVal)).numpy())
+print('Optimized model mse Loss', LSTMEmotionPredictor.custom_mse(yVal, optimizedModel.predict(xVal)).numpy())
 
 
 # %% plot KL_divergence vs time averaged over test points
@@ -533,8 +553,8 @@ fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
 fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
 
 axes.plot(y_time, meanPredictorLoss, label='Mean Predictor', color='black', linestyle='-', marker='o', markersize=3)
-axes.plot(y_time, baseModelLoss, label='Base Predictor (Trained with KL_div)', color='red', linestyle='-', marker='o', markersize=3)
-axes.plot(y_time, optimizedModelLoss, label='Optimized Predictor (Trained with KL_div)', color='blue', linestyle='-', marker='o', markersize=3)
+axes.plot(y_time, baseModelLoss, label='Base Predictor (Trained with kl+mse with time)', color='red', linestyle='-', marker='o', markersize=3)
+axes.plot(y_time, optimizedModelLoss, label='Optimized Predictor (Trained with kl+mse with time)', color='blue', linestyle='-', marker='o', markersize=3)
 
 axes.set_xlabel('Time')
 axes.set_ylabel('KL Loss')
