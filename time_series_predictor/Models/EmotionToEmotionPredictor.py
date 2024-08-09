@@ -265,7 +265,7 @@ class LSTMEmotionPredictor:
             model.add(tf.keras.layers.Reshape((flattened_output_shape,)))
 
             #defining loss function
-            flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.custom_mse_time(reshapeLambda(y_true), reshapeLambda(y_pred))
+            flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.kl_divergence_loss(reshapeLambda(y_true), reshapeLambda(y_pred))
             
             model.compile(loss=flattenedLossFunction,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
@@ -275,7 +275,7 @@ class LSTMEmotionPredictor:
 
 
         # Create the BayesSearchCV object
-        flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.custom_mse_time(reshapeLambda(y_true), reshapeLambda(y_pred))
+        flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.kl_divergence_loss(reshapeLambda(y_true), reshapeLambda(y_pred))
         #build_fn is the bayesian optimizer build function
         bayes_search = BayesSearchCV(
             estimator=KerasRegressor(
@@ -356,14 +356,14 @@ for filterChoice in filterMethods:
                                   'yTest':yTest}
     # Create an instance of LSTMEmotionPredictor
     input_shape = (xTr.shape[1], xTr.shape[2])  # Assuming xTr is 3D with shape (#minute long segments, #time steps, #features = 7)
-    lstm_model = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=0,  nTimeDistributedLayers=0, lossFunc=LSTMEmotionPredictor.custom_mse_time)
+    lstm_model = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=0,  nTimeDistributedLayers=0, lossFunc=LSTMEmotionPredictor.kl_divergence_loss)
 
     # Train the LSTM model
     history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
 
     modelMap[filterChoice] = (lstm_model.model,history)
 
-    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32,lossFunc=LSTMEmotionPredictor.custom_mse_time)
+    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32,lossFunc=LSTMEmotionPredictor.kl_divergence_loss)
     #Finding optimized Model:
     optimizedMap[filterChoice] = optimizingModel.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
 
