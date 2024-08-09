@@ -498,6 +498,23 @@ def meanPredictor(x):
 
     return np.tile(meanPerSample, (1,600,1))
 
+def geometricmeanPredictor(x):
+    #x is the 3dimensional test array
+    # Calculate the geometric mean along the axis 1 (timestamps)
+    # To avoid log of zero, we use np.where to set small values to a tiny positive value
+    epsilon = 1e-10
+    x = np.where(x > 0, x, epsilon)
+    
+    # Compute the geometric mean along axis 1
+    log_x = np.log(x)
+    mean_log_x = np.mean(log_x, axis=1, keepdims=True)
+    geometric_mean = np.exp(mean_log_x)
+    
+    # Tile the mean across all timestamps
+    result = np.tile(geometric_mean, (1, x.shape[1], 1))
+    
+    return result
+
 def kl_div_averageAcrossTimestamps(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
     assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
 
@@ -533,17 +550,21 @@ optimizedModel = optimized_models['optimized_ewmainterp'][0]
 
 print('\nKL Loss averaged across all timesteps in validation set')
 print('Mean model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal,tf.convert_to_tensor(meanPredictor(xVal))).numpy())
+print('Geometric Mean model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal,tf.convert_to_tensor(geometricmeanPredictor(xVal))).numpy())
+
 print('Base model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, baseModel.predict(xVal)).numpy())
 print('Optimized model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, optimizedModel.predict(xVal)).numpy())
 
-print('\nMSE loss first averaged over time then samples')
+print('\n\nMSE loss first averaged over time then samples')
 print('Mean model mse Loss', LSTMEmotionPredictor.custom_mse(yVal,tf.convert_to_tensor(meanPredictor(xVal))).numpy())
+print('Geometric Mean model mse Loss', LSTMEmotionPredictor.custom_mse(yVal,tf.convert_to_tensor(geometricmeanPredictor(xVal))).numpy())
 print('Base model mse Loss', LSTMEmotionPredictor.custom_mse(yVal, baseModel.predict(xVal)).numpy())
 print('Optimized model mse Loss', LSTMEmotionPredictor.custom_mse(yVal, optimizedModel.predict(xVal)).numpy())
 
 
 # %% plot KL_divergence vs time averaged over test points
-meanPredictorLoss = kl_div_averageAcrossTimestamps(yVal, tf.convert_to_tensor(meanPredictor(xVal))) 
+meanPredictorLoss = kl_div_averageAcrossTimestamps(yVal, tf.convert_to_tensor(meanPredictor(xVal)))
+geometricmeanPredictorLoss = kl_div_averageAcrossTimestamps(yVal, tf.convert_to_tensor(geometricmeanPredictor(xVal))) 
 
 baseModelLoss = kl_div_averageAcrossTimestamps(yVal, baseModel.predict(xVal))
 optimizedModelLoss = kl_div_averageAcrossTimestamps(yVal, optimizedModel.predict(xVal))
@@ -553,8 +574,9 @@ fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
 fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
 
 axes.plot(y_time, meanPredictorLoss, label='Mean Predictor', color='black', linestyle='-', marker='o', markersize=3)
-axes.plot(y_time, baseModelLoss, label='Base Predictor (Trained with kl+mse with time)', color='red', linestyle='-', marker='o', markersize=3)
-axes.plot(y_time, optimizedModelLoss, label='Optimized Predictor (Trained with kl+mse with time)', color='blue', linestyle='-', marker='o', markersize=3)
+axes.plot(y_time, geometricmeanPredictorLoss, label='Geometric Mean Predictor', color='green', linestyle='-', marker='o', markersize=3)
+axes.plot(y_time, baseModelLoss, label='Base Predictor (Trained with kl divergence)', color='red', linestyle='-', marker='o', markersize=3)
+axes.plot(y_time, optimizedModelLoss, label='Optimized Predictor (Trained with kl divergence)', color='blue', linestyle='-', marker='o', markersize=3)
 
 axes.set_xlabel('Time')
 axes.set_ylabel('KL Loss')
