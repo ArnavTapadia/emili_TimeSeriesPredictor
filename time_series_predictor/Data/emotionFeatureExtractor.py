@@ -155,7 +155,7 @@ class emotionFeatureExtractor:
     def train_val_testing_split(self,X,Y, split = [0.8,0.1,0.1], random_state = None):
         n = X.shape[0]
         #randomly select 80% for training, 10% for validation, 10% for testing
-        assert sum(split) == 1 and split[0] > 0 and split [1] >= 0 and split[2] > 0
+        assert round(sum(split)) == 1 and split[0] > 0 and split [1] >= 0 and split[2] > 0
 
         # First split to create training and temp sets
         xTrain, xTemp, yTrain, yTemp = train_test_split(X, Y, test_size=split[1] + split[2], random_state= random_state)
