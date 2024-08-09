@@ -225,8 +225,8 @@ class LSTMEmotionPredictor:
             'epochs': Integer(10, 25),
             'model__lstm_units': Integer(64, 128),
             'model__learning_rate': Real(1e-4, 1e-2, prior='log-uniform'),
-            'model__nAddLSTMLayers': Integer(0, 3),
-            'model__nTimeDistributedLayers': Integer(0, 5),
+            'model__nAddLSTMLayers': Integer(0, 2),
+            'model__nTimeDistributedLayers': Integer(0, 3),
             'model__AddTimeDistributedActivation': Categorical(['relu', 'tanh', 'sigmoid']),
             'model__nIntermediateDenseUnits': Integer(16, 64)
         }
@@ -347,7 +347,7 @@ for filterChoice in filterMethods:
 
 
     #creating training and testing split
-    xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData)
+    xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, split=[0.7,0.2,0.1])
     dataSplitMap[filterChoice] = {'xTr':xTr,
                                   'yTr':yTr,
                                   'xVal':xVal,
@@ -485,4 +485,63 @@ for method, (model, history) in modelMap.items():
     loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xVal'], dataSplitMap[method]['yVal'])
     print(f'  Val loss: {loss:.4f}')
 
+# %% Compare to model that predicts only the mean
+
+#obtaining the test data
+xVal = dataSplitMap['ewmainterp']['xVal']
+yVal = dataSplitMap['ewmainterp']['xVal']
+
+def meanPredictor(x):
+    #x is the 3dimensional test array
+    #this function predicts the mean vector probability vector given the previous one minute of data
+    meanPerSample = np.mean(x, axis = 1, keepdims = True) #taking the mean over the timestamps for each sample
+
+    return np.tile(meanPerSample, (1,600,1))
+
+def kl_div_averageAcrossTimestamps(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
+    assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
+
+    # Cast tensors to the same type
+    y_true = tf.cast(y_true, dtype=tf.float32)
+    y_pred = tf.cast(y_pred, dtype=tf.float32)
+
+    # Add a small epsilon to avoid division by zero or log of zero
+    epsilon = 1e-7
+
+    # Compute KL divergence for each timestamp
+    kl_div = tf.reduce_sum(y_true * (tf.math.log(y_true + epsilon) - tf.math.log(y_pred + epsilon)), axis=-1)
+
+    # Average over all timestamps and batches
+    return tf.reduce_mean(kl_div, axis = 0) #should return a 600x1 vector
+
+baseModel = base_models['ewmainterp'][0]
+optimizedModel = optimized_models['optimized_ewmainterp'][0]
+
+print('Mean model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal,tf.convert_to_tensor(meanPredictor(xVal))).numpy())
+print('Base model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, baseModel.predict(xVal)).numpy())
+print('Optimized model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, optimizedModel.predict(xVal)).numpy())
+
+
+# %% plot KL_divergence vs time averaged over test points
+meanPredictorLoss = kl_div_averageAcrossTimestamps(yVal, tf.convert_to_tensor(meanPredictor(xVal))) 
+
+baseModelLoss = kl_div_averageAcrossTimestamps(yVal, baseModel.predict(xVal))
+optimizedModelLoss = kl_div_averageAcrossTimestamps(yVal, optimizedModel.predict(xVal))
+
+
+fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
+fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
+
+axes.plot(y_time, meanPredictorLoss, label='Mean Predictor', color='black', linestyle='-', marker='o', markersize=3)
+axes.plot(y_time, baseModelLoss, label='Base Predictor (Trained with KL_div)', color='red', linestyle='-', marker='o', markersize=3)
+axes.plot(y_time, optimizedModelLoss, label='Optimized Predictor (Trained with KL_div)', color='blue', linestyle='-', marker='o', markersize=3)
+
+axes.set_xlabel('Time')
+axes.set_ylabel('KL Loss')
+plt.tight_layout()
+axes.grid(True)
+axes.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.subplots_adjust(top=0.95, right=0.8)  # Adjust title position and make room for legend
+axes.set_xlim(0, 60)
+plt.show()
 # %%
