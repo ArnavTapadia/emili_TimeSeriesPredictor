@@ -325,6 +325,10 @@ class LSTMEmotionPredictor:
         }
 
 
+
+
+
+
 #%% testing out the functions - initializing
 extractor = emotionFeatureExtractor()
 
@@ -341,13 +345,10 @@ dataSplitMap = {}
 optimizedMap = {} #filterMethod:{filterMethod,best_model,best_params,best_val_accuracy,history}
 time_series_predictorPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for filterChoice in filterMethods:
-#to load data file name is os.path.join('time_series_predictor/Data/Data_Saves/Preprocessed', fName + '_x.npy') or y.npy
-    XData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', filterChoice + '_x.npy'))
-    YData = np.load(os.path.join(time_series_predictorPath,'Data/Data_Saves/Preprocessed', filterChoice + '_y.npy'))
-
 
     #creating training and testing split
-    xTr,yTr,xVal,yVal,xTest,yTest = extractor.train_val_testing_split(XData,YData, split=[0.7,0.2,0.1])
+    xTr,yTr,xVal,yVal,xTest,yTest = extractor.load_data(resample_method=filterChoice)
+    
     dataSplitMap[filterChoice] = {'xTr':xTr,
                                   'yTr':yTr,
                                   'xVal':xVal,
@@ -415,6 +416,8 @@ fig.text(0.5, 0.04, 'Epoch', ha='center', fontsize=12)
 # Adjust layout and display
 plt.tight_layout()
 plt.show()
+
+
 
 #%% comparing yVal for specific iSample
 %matplotlib widget
