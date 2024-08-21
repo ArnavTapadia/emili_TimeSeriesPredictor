@@ -347,7 +347,9 @@ time_series_predictorPath = os.path.dirname(os.path.dirname(os.path.abspath(__fi
 for filterChoice in filterMethods:
 
     #creating training and testing split
-    xTr,yTr,xVal,yVal,xTest,yTest = extractor.load_data(resample_method=filterChoice)
+    # xTr,yTr,xVal,yVal,xTest,yTest = extractor.load_from_data_saves(resample_method=filterChoice) #if you want to load from pre-saved and split data
+    xTr,yTr,xVal,yVal,xTest,yTest = extractor.get_data_split(resample_method=filterChoice, random_state=5) #if you want to load realtime
+    
     
     dataSplitMap[filterChoice] = {'xTr':xTr,
                                   'yTr':yTr,
