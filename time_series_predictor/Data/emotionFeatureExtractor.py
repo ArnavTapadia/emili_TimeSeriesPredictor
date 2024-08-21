@@ -5,15 +5,16 @@ import json
 import os
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import random
 
 
 class emotionFeatureExtractor:
-    def __init__(self, log_dir = '../Data/Data_Saves', prediction_length = 600, segment_length=600, stride=600, target_freq='100ms'):
+    def __init__(self, log_dir = '../Data/Data_Saves', y_prediction_length = 600, x_segment_length=600, stride=600, target_freq='100ms'):
         self.log_dir = log_dir
-        self.segment_length = segment_length
+        self.x_segment_length = x_segment_length
         self.stride = stride
         self.target_freq = target_freq
-        self.prediction_length = prediction_length
+        self.y_prediction_length = y_prediction_length
 
 
     def read_emotion_logs(self):
@@ -111,39 +112,48 @@ class emotionFeatureExtractor:
         X, Y = [], []
         for file_data in data:
             if resample_method != 'times_scores':
-                for start in range(0, file_data.shape[0] - self.segment_length, self.stride):
-                    end = start + self.segment_length
-                    if end + self.prediction_length <= file_data.shape[0]:
+                for start in range(0, file_data.shape[0] - self.x_segment_length, self.stride):
+                    end = start + self.x_segment_length
+                    if end + self.y_prediction_length <= file_data.shape[0]:
                         X.append(file_data[start:end])
-                        Y.append(file_data[end:end + self.prediction_length])
+                        Y.append(file_data[end:end + self.y_prediction_length])
             else:
                 for start in range(0, int(np.ceil(file_data[-1,0])), self.stride//10):
-                    end = start + self.segment_length/10
-                    if np.shape(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.prediction_length/10)])[0] > self.prediction_length: #TODO: Fix this
+                    end = start + self.x_segment_length/10
+                    if np.shape(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.y_prediction_length/10)])[0] > self.y_prediction_length: #TODO: Fix this
                         X.append(file_data[(file_data[:,0] >= start) & (file_data[:,0]<=end)])
-                        Y.append(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.prediction_length/10)])
+                        Y.append(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.y_prediction_length/10)])
         return np.array(X), np.array(Y) 
         
     def train_val_testing_split(self, data, split=[0.8, 0.1, 0.1], random_state=None):
         n = len(data)
         assert sum(split) == 1 and split[0] > 0 and split[1] >= 0 and split[2] > 0
-
+        #permute the data according to random_state
+        random.Random(random_state).shuffle(data)
         #calculate length of each time series in terms of segment length
-        numMinsPerSample = [sample.shape[0]//self.segment_length for sample in data]
+        nSegments = np.array([(sample.shape[0]-self.y_prediction_length)//self.x_segment_length for sample in data])
+        cumNSegments = np.cumsum(nSegments) 
         
-        # First split to create training and temp sets
-        train_data, temp_data = train_test_split(data, test_size=split[1] + split[2], random_state=random_state)
+        # Splitting according to split variable
+        # take first split[0] for train, split[1] for val, split[2] for test
+        trainSegmentCount = cumNSegments[-1]*split[0]
+        valSegmentCount = cumNSegments[-1]*split[1]
 
-        # Calculate validation and test split size proportionally from the temp set
-        val_test_ratio = split[1] / (split[1] + split[2])
+        #masks for train val test split
+        bTrain = cumNSegments < trainSegmentCount
+        bVal = (trainSegmentCount < cumNSegments) & (cumNSegments < trainSegmentCount + valSegmentCount)
+        bTest = ~(bTrain | bVal)
 
-        # Split again
-        val_data, test_data = train_test_split(temp_data, test_size=1-val_test_ratio, random_state=random_state)
+        train_data = [data[i] for i in range(len(bTrain)) if bTrain[i]]
+        val_data = [data[i] for i in range(len(bVal)) if bVal[i]]
+        test_data = [data[i] for i in range(len(bTest)) if bTest[i]]
 
         return train_data, val_data, test_data
     
-    def load_data(self, resample_method='ewma'):
-
+    def load_from_data_saves(self, resample_method='ewma'):
+        '''
+        method to load data from pre-saved folder
+        '''
         save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Data/Data_Saves/Preprocessed')
 
         # Load the segmented data
@@ -181,10 +191,34 @@ class emotionFeatureExtractor:
             np.save(os.path.join(save_dir, f'{filterMethod}_Y_val.npy'), Y_val)
             np.save(os.path.join(save_dir, f'{filterMethod}_X_test.npy'), X_test)
             np.save(os.path.join(save_dir, f'{filterMethod}_Y_test.npy'), Y_test)
+    
+    def get_data_split(self, resample_method = 'ewmainterp', split = [0.8, 0.1, 0.1], random_state=np.random.randint(0,2**30)):
+        '''
+        Similar to updata_dataSaves
+        Just returns to user the requested data while processing it in real time - slower
+        '''
+
+        all_data = self.read_emotion_logs()
+        #obtains a train val and testing split
+        #should be such that all the data is saved in the same split random state
+
+    
+        #data imputation
+        resampled_data = [self.resample_data(file_data, resample_method) for file_data in all_data]
+        resampled_train_data, resampled_val_data, resampled_test_data = self.train_val_testing_split(data=resampled_data, random_state=random_state, split=split)
+
+        #then segments the data correctly according to the stride required
+        X_train, Y_train = self.segment_data(resampled_train_data, resample_method)
+        X_val, Y_val = self.segment_data(resampled_val_data, resample_method)
+        X_test, Y_test = self.segment_data(resampled_test_data, resample_method)
+
+        return X_train, Y_train, X_val, Y_val, X_test, Y_test
 
 
 
     def compareFilterMethods(self, filterMethodToComp = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth'], iFile = -1):
+        #Function to be used to view the results of different data imputation methods
+        
         all_data = self.read_emotion_logs()
         times_scores_data = [self.resample_data(file_data, 'times_scores') for file_data in all_data]
         colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethodToComp)+1))
@@ -243,9 +277,39 @@ extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path
 # extractor.compareFilterMethods(['ewma', 'interpolation', 'interp_ewmaSmooth','ewmainterp'], iFile = 68)
 
 
-extractor.update_dataSaves()
-# for meth in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
-#     XData,YData = extractor.prepare_and_segment_data(resample_method=meth)
+# extractor.update_dataSaves()
+xTr,yTr,xVal,yVal,xTest,yTest = extractor.get_data_split(resample_method='ewmainterp', random_state=5)
+xTr2,yTr2,xVal2,yVal2,xTest2,yTest2 = extractor.get_data_split(resample_method='ewma', random_state=5)
 
-# xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
+
+fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
+fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
+
+
 # %%
+iSample = np.random.randint(0,xTest.shape[0])
+num_features = 7
+fig, axes = plt.subplots(num_features, 1, figsize=(10, 20), sharex=True)
+fig.suptitle(f'xTest Features vs Time per Resample Method, iSample {iSample}')
+colors = plt.cm.rainbow(np.linspace(0, 1, 2))
+
+resampled_data_time = np.arange(0, 0.1 * np.shape(xTest)[0], 0.1)
+resampled_data_time = resampled_data_time[:np.shape(xTest)[0]]
+
+for i in range(num_features):
+    axes[i].plot(resampled_data_time, xTest[iSample, :, i], label='ewmainterp', color=colors[0], linestyle='--', marker = 'o', markersize=2)
+    axes[i].plot(resampled_data_time, xTest2[iSample, :, i], label='ewma', color=colors[1], linestyle='--', marker = 'o', markersize=2)
+
+
+#label subplots
+for i in range(num_features):       
+    axes[i].set_ylabel(f'Feature {i + 1}')
+    axes[i].legend()
+    axes[i].grid(True)
+
+
+axes[-1].set_xlabel('Time')
+plt.tight_layout()
+plt.subplots_adjust(top=0.95)  # Adjust title position
+axes[-1].set_xlim(0, 60)
+plt.show()
