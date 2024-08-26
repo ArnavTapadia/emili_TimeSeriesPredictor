@@ -233,13 +233,15 @@ class LSTMEmotionPredictor:
 
         #defining custom loss functions to work with flattened data
         reshapeLambda = lambda y: tf.reshape(y, (-1, y_train.shape[1], y_train.shape[2]))
+        flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.kl_divergence_loss(reshapeLambda(y_true), reshapeLambda(y_pred))
+
 
         def build_model_flattened_data(input_shape, lstm_units=64, learning_rate=0.001, nAddLSTMLayers=0, 
                  nTimeDistributedLayers=1, nIntermediateDenseUnits=32, AddTimeDistributedActivation = 'relu'):
             
 
             flattened_input_shape = np.prod(input_shape)
-            flattened_output_shape = input_shape[0] * 7  # Assuming 7 emotion categories
+            flattened_output_shape = input_shape[0] * input_shape[1]  # Assuming 7 emotion categories
 
             #step 1 is the unflatten the input. then predict. then reflatten the output
 
@@ -264,9 +266,7 @@ class LSTMEmotionPredictor:
             #add final reshape back to 2d
             model.add(tf.keras.layers.Reshape((flattened_output_shape,)))
 
-            #defining loss function
-            flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.kl_divergence_loss(reshapeLambda(y_true), reshapeLambda(y_pred))
-            
+            #defining loss function            
             model.compile(loss=flattenedLossFunction,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
                     metrics=[flattenedLossFunction])
@@ -275,7 +275,6 @@ class LSTMEmotionPredictor:
 
 
         # Create the BayesSearchCV object
-        flattenedLossFunction = lambda y_true, y_pred: LSTMEmotionPredictor.kl_divergence_loss(reshapeLambda(y_true), reshapeLambda(y_pred))
         #build_fn is the bayesian optimizer build function
         bayes_search = BayesSearchCV(
             estimator=KerasRegressor(
