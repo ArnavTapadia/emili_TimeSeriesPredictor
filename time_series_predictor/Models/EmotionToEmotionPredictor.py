@@ -481,7 +481,7 @@ for i in range(num_features):
 axes[-1].set_xlabel('Time')
 plt.tight_layout()
 plt.subplots_adjust(top=0.95, right=0.8)  # Adjust title position and make room for legend
-axes[-1].set_xlim(0, 60)
+axes[-1].set_xlim(40, 120)
 axes[-1].set_ylim(0, 1)
 plt.show()
 
