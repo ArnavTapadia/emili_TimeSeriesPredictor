@@ -267,51 +267,51 @@ class emotionFeatureExtractor:
         plt.show()
 
 
-extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
-#%% Comparing filter methods
-# %matplotlib widget
-# # extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
-# # extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
-# # extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
-# extractor.compareFilterMethods()
-# extractor.compareFilterMethods(['ewma', 'interpolation', 'interp_ewmaSmooth','ewmainterp'], iFile = 68)
+# extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
+# #%% Comparing filter methods
+# # %matplotlib widget
+# # # extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
+# # # extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
+# # # extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
+# # extractor.compareFilterMethods()
+# # extractor.compareFilterMethods(['ewma', 'interpolation', 'interp_ewmaSmooth','ewmainterp'], iFile = 68)
 
 
-# extractor.update_dataSaves()
-xTr,yTr,xVal,yVal,xTest,yTest = extractor.get_data_split(resample_method='ewmainterp', random_state=5)
-xTr2,yTr2,xVal2,yVal2,xTest2,yTest2 = extractor.get_data_split(resample_method='ewma', random_state=5)
+# # extractor.update_dataSaves()
+# xTr,yTr,xVal,yVal,xTest,yTest = extractor.get_data_split(resample_method='ewmainterp', random_state=5)
+# xTr2,yTr2,xVal2,yVal2,xTest2,yTest2 = extractor.get_data_split(resample_method='ewma', random_state=5)
 
 
-fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
-fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
+# fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
+# fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
 
 
-# %%
-iSample = np.random.randint(0,xTest.shape[0])
-num_features = 7
-fig, axes = plt.subplots(num_features, 1, figsize=(10, 20), sharex=True, sharey=True)
-fig.suptitle(f'xTest Features vs Time per Resample Method, iSample {iSample}')
-colors = plt.cm.rainbow(np.linspace(0, 1, 2))
+# # %%
+# iSample = np.random.randint(0,xTest.shape[0])
+# num_features = 7
+# fig, axes = plt.subplots(num_features, 1, figsize=(10, 20), sharex=True, sharey=True)
+# fig.suptitle(f'xTest Features vs Time per Resample Method, iSample {iSample}')
+# colors = plt.cm.rainbow(np.linspace(0, 1, 2))
 
-resampled_data_time = np.arange(0, 0.1 * np.shape(xTest)[1], 0.1)
-resampled_data_time = resampled_data_time[:np.shape(xTest)[1]]
+# resampled_data_time = np.arange(0, 0.1 * np.shape(xTest)[1], 0.1)
+# resampled_data_time = resampled_data_time[:np.shape(xTest)[1]]
 
-for i in range(num_features):
-    axes[i].plot(resampled_data_time, xTest[iSample, :, i], label='ewmainterp', color=colors[0], linestyle='--', marker = 'o', markersize=2)
-    axes[i].plot(resampled_data_time, xTest2[iSample, :, i], label='ewma', color=colors[1], linestyle='--', marker = 'o', markersize=2)
-
-
-#label subplots
-for i in range(num_features):       
-    axes[i].set_ylabel(f'Feature {i + 1}')
-    axes[i].legend()
-    axes[i].grid(True)
+# for i in range(num_features):
+#     axes[i].plot(resampled_data_time, xTest[iSample, :, i], label='ewmainterp', color=colors[0], linestyle='--', marker = 'o', markersize=2)
+#     axes[i].plot(resampled_data_time, xTest2[iSample, :, i], label='ewma', color=colors[1], linestyle='--', marker = 'o', markersize=2)
 
 
-axes[-1].set_xlabel('Time')
-plt.tight_layout()
-plt.subplots_adjust(top=0.95)  # Adjust title position
-axes[-1].set_xlim(0, 60)
-axes[-1].set_ylim(0,1)
-plt.show()
+# #label subplots
+# for i in range(num_features):       
+#     axes[i].set_ylabel(f'Feature {i + 1}')
+#     axes[i].legend()
+#     axes[i].grid(True)
+
+
+# axes[-1].set_xlabel('Time')
+# plt.tight_layout()
+# plt.subplots_adjust(top=0.95)  # Adjust title position
+# axes[-1].set_xlim(0, 60)
+# axes[-1].set_ylim(0,1)
+# plt.show()
 # %%

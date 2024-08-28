@@ -111,8 +111,13 @@ class LSTMEmotionPredictor:
         self.input_shape = input_shape
         self.LSTMUnits = LSTMUnits
         self.lossFunc = lossFunc
-        self.model = self.create_model(nAddLSTMLayers=nAddLSTMLayers, 
+        self.baseModel = self.create_model(nAddLSTMLayers=nAddLSTMLayers, 
                  nTimeDistributedLayers=nTimeDistributedLayers, nIntermediateDenseUnits=nIntermediateDenseUnits)
+        self.baseHistory = None
+        
+        self.optimizedModel = None
+        self.optimizedParams = None
+        self.optimizedHistory = None
 
 
     def create_model(self, lstm_units=None, learning_rate=0.001, nAddLSTMLayers=0, 
@@ -150,7 +155,7 @@ class LSTMEmotionPredictor:
         # Compile the model
         model.compile(loss=self.lossFunc,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                    metrics=[LSTMEmotionPredictor.custom_mse_time])
+                    metrics=[LSTMEmotionPredictor.kl_divergence_loss])
         
         return model
 
@@ -167,11 +172,11 @@ class LSTMEmotionPredictor:
         """
         if validation_data:
             x_val, y_val = validation_data
-            history = self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size,
+            history = self.baseModel.fit(x_train, y_train, epochs=epochs, batch_size=batch_size,
                                      validation_data=(x_val, y_val))
         else:
-            history = self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
-        
+            history = self.baseModel.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
+
         return history
 
     @staticmethod
@@ -298,29 +303,31 @@ class LSTMEmotionPredictor:
         bayes_search.fit(X, Y)
 
         # Get the best parameters and model
-        best_params = bayes_search.best_params_
-        self.model = self.create_model(lstm_units=best_params['model__lstm_units'], 
-                                    learning_rate=best_params['model__learning_rate'],
-                                    nAddLSTMLayers=best_params['model__nAddLSTMLayers'], 
-                                    nTimeDistributedLayers=best_params['model__nTimeDistributedLayers'], 
-                                    nIntermediateDenseUnits=best_params['model__nIntermediateDenseUnits'],
-                                    AddTimeDistributedActivation=best_params['model__AddTimeDistributedActivation'])
+        self.optimizedParams = bayes_search.best_params_
+        self.optimizedModel = self.create_model(lstm_units=self.optimizedParams['model__lstm_units'], 
+                                    learning_rate=self.optimizedParams['model__learning_rate'],
+                                    nAddLSTMLayers=self.optimizedParams['model__nAddLSTMLayers'], 
+                                    nTimeDistributedLayers=self.optimizedParams['model__nTimeDistributedLayers'], 
+                                    nIntermediateDenseUnits=self.optimizedParams['model__nIntermediateDenseUnits'],
+                                    AddTimeDistributedActivation=self.optimizedParams['model__AddTimeDistributedActivation'])
         
         # Train the best model with the original 3D data using the train method
-        history = self.train(x_train, y_train, 
-                            epochs=best_params['epochs'], 
-                            batch_size=best_params['batch_size'], 
+        self.optimizedHistory = self.train(x_train, y_train, 
+                            epochs=self.optimizedParams['epochs'], 
+                            batch_size=self.optimizedParams['batch_size'], 
                             validation_data=(x_val, y_val))
 
         # Evaluate the best model
-        val_loss, val_accuracy = LSTMEmotionPredictor.evaluate(self.model, x_val, y_val)
+        val_loss, val_accuracy = LSTMEmotionPredictor.evaluate(self.optimizedModel, x_val, y_val)
+
+        
 
         return {
             'filter_method': filterMethod,
-            'best_model': self.model,
-            'best_params': best_params,
+            'best_model': self.optimizedModel,
+            'best_params': self.optimizedParams,
             'best_val_accuracy': val_accuracy,
-            'history': history
+            'history': self.optimizedHistory
         }
 
 
@@ -361,15 +368,14 @@ for filterChoice in filterMethods:
     lstm_model = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=0,  nTimeDistributedLayers=0, lossFunc=LSTMEmotionPredictor.kl_divergence_loss)
 
     # Train the LSTM model
-    history = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal))
+    lstm_model.baseHistory = lstm_model.train(xTr, yTr, epochs=10, batch_size=32, validation_data=(xVal, yVal)) #TODO: Find better way to set
 
-    modelMap[filterChoice] = (lstm_model.model,history)
-
-    optimizingModel = LSTMEmotionPredictor(input_shape, nAddLSTMLayers=1,  nTimeDistributedLayers=1, nIntermediateDenseUnits=32,lossFunc=LSTMEmotionPredictor.kl_divergence_loss)
     #Finding optimized Model:
-    optimizedMap[filterChoice] = optimizingModel.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1)
+    # lstm_model.hyperparamOptimize(filterChoice, xTr, yTr, xVal, yVal, n_iter=1) #don't care about returns
 
-#%% plotting
+    modelMap[filterChoice] = lstm_model
+
+#%% plotting loss functions
 # Set up the plot
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True, sharey=True)
 fig.suptitle('Model Performance Comparison vs Training Epochs', fontsize=16)
@@ -379,37 +385,41 @@ num_models = len(filterMethods)
 colors = plt.cm.rainbow(np.linspace(0, 1, num_models))
 color_dict = {method: colors[i] for i, method in enumerate(filterMethods)}
 
-# Create dictionaries for base and optimized models
-base_models = {method: modelMap[method] for method in filterMethods}
-optimized_models = {f"optimized_{method}": (optimizedMap[method]['best_model'], optimizedMap[method]['history']) for method in filterMethods}
-
 # Function to plot models
-def plot_models(ax, models, title):
-    for method, (model, history) in models.items():
-        base_method = method.replace("optimized_", "")
-        color = color_dict[base_method]
-        
-        # Plot training loss
-        ax.plot(history.history['loss'], color=color, 
-                label=f'{method} (train)', 
+for filterMethod, model in modelMap.items():
+    color = color_dict[filterMethod]
+    
+    # Plot training loss for unoptimized model
+    ax1.plot(model.baseHistory.history['loss'], color=color, 
+            label=f'{filterMethod} (train)', 
+            linewidth=2, linestyle='-')
+    
+    # Plot validation loss
+    ax1.plot(model.baseHistory.history['val_loss'], color=color, 
+            label=f'{filterMethod} (val)', 
+            linewidth=2, linestyle='--')
+    
+
+    #do same plots for optimized model (if it exists)
+    if model.optimizedModel:
+        ax2.plot(model.optimizedHistory.history['loss'], color=color, 
+                label=f'{filterMethod} (train)', 
                 linewidth=2, linestyle='-')
         
-        # Plot validation loss
-        ax.plot(history.history['val_loss'], color=color, 
-                label=f'{method} (val)', 
+        ax2.plot(model.optimizedHistory.history['val_loss'], color=color, 
+                label=f'{filterMethod} (val)', 
                 linewidth=2, linestyle='--')
+       
     
-    ax.set_title(title, fontsize=14)
+#making graphs look nice
+ax1.set_title('Base Models: Training and Validation Loss', fontsize=14)
+ax2.set_title('Optimized Models: Training and Validation Loss', fontsize=14)
+
+for ax in [ax1, ax2]:
     ax.set_ylabel('Loss', fontsize=12)
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
     ax.grid(True, linestyle='--', alpha=0.7)
     ax.set_yscale('log')  # Set y-axis to logarithmic scale for better visibility
-
-# Plot base models
-plot_models(ax1, base_models, 'Base Models: Training and Validation Loss')
-
-# Plot optimized models
-plot_models(ax2, optimized_models, 'Optimized Models: Training and Validation Loss')
 
 # Set common x-label
 fig.text(0.5, 0.04, 'Epoch', ha='center', fontsize=12)
@@ -433,32 +443,34 @@ fig, axes = plt.subplots(num_features, 1, figsize=(12, 10), sharex=True, sharey=
 fig.suptitle(f'yPred Features Prediction vs Time for Different Models, iSample {iSample}')
 
 # True prediction (taking for 1st filterMethod as baseline)
+xTrue_features = dataSplitMap[filterMethods[0]]['xVal'][iSample]
+x_time = np.arange(0,0.1 * np.shape(xTrue_features)[0], 0.1)
+
 yTrue_features = dataSplitMap[filterMethods[0]]['yVal'][iSample]
-y_time = np.arange(0, 0.1 * np.shape(yTrue_features)[0], 0.1)
+y_time = np.arange(0.1 * np.shape(yTrue_features)[0],0.2 * np.shape(yTrue_features)[0], 0.1)
 
 # Plot true baseline
 for i in range(num_features):
+    #plotting xTrue
+    axes[i].plot(x_time, xTrue_features[:, i], label='xTrue', color='black', linestyle='-', marker='o', markersize=3)
     axes[i].plot(y_time, yTrue_features[:, i], label='yTrue', color='black', linestyle='-', marker='o', markersize=3)
 
 for idx, (filterMethod, data) in enumerate(dataSplitMap.items()):
     resampled_xVal = np.array([data['xVal'][iSample]])
 
     # Base model
-    model, _ = modelMap[filterMethod]
-    yPred_features = model.predict(resampled_xVal)
+    model = modelMap[filterMethod]
+    yPred_features = model.baseModel.predict(resampled_xVal)
 
     for i in range(num_features):
         axes[i].plot(y_time, yPred_features[0, :, i], label=filterMethod, color=colors[idx*2], linestyle='-', marker='o', markersize=2)
 
     # Optimized model
-    optimizedResults = optimizedMap[filterMethod]
-    optimumModel = optimizedResults['best_model']
-    opt_yPred_features = optimumModel.predict(resampled_xVal)
+    if model.optimizedModel:
+        opt_yPred_features = model.optimizedModel.predict(resampled_xVal)
 
-    for i in range(num_features):
-        axes[i].plot(y_time, opt_yPred_features[0, :, i], label=f'optimized_{filterMethod}', color=colors[idx*2+1], linestyle='-', marker='o', markersize=2)
-
-    print(f"{filterMethod} - Best params:", optimizedResults['best_params'])
+        for i in range(num_features):
+            axes[i].plot(y_time, opt_yPred_features[0, :, i], label=f'optimized_{filterMethod}', color=colors[idx*2+1], linestyle='-', marker='o', markersize=2)
 
 # Label subplots
 for i in range(num_features):
@@ -475,18 +487,19 @@ plt.show()
 
 # Print model summaries
 print('\nBaseline Model')
-model.summary()
+model.baseModel.summary()
 
-print('\nOptimized Model')
-optimumModel.summary()
+if model.optimizedModel:
+    print('\nOptimized Model')
+    model.optimizedModel.summary()
 
 #%%
 #evaluate loss on training and val for the models 
-for method, (model, history) in modelMap.items():
-    loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xTr'], dataSplitMap[method]['yTr'])
+for method, model in modelMap.items():
+    loss, accuracy = LSTMEmotionPredictor.evaluate(model.baseModel, dataSplitMap[method]['xTr'], dataSplitMap[method]['yTr'])
     print(f'{method}:')
     print(f'  Training loss: {loss:.4f}')
-    loss, accuracy = LSTMEmotionPredictor.evaluate(model, dataSplitMap[method]['xVal'], dataSplitMap[method]['yVal'])
+    loss, accuracy = LSTMEmotionPredictor.evaluate(model.baseModel, dataSplitMap[method]['xVal'], dataSplitMap[method]['yVal'])
     print(f'  Val loss: {loss:.4f}')
 
 # %% Compare to model that predicts only the mean
@@ -549,29 +562,31 @@ def mse_acrossTimestamps(y_true, y_pred): #only really used for bayesian optimiz
     return tf.reduce_mean(euclidean_distances, axis = 0)
 
 
-baseModel = base_models['ewmainterp'][0]
-optimizedModel = optimized_models['optimized_ewmainterp'][0]
+model = modelMap['ewmainterp']
 
 print('\nKL Loss averaged across all timesteps in validation set')
 print('Mean model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal,tf.convert_to_tensor(meanPredictor(xVal))).numpy())
 print('Geometric Mean model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal,tf.convert_to_tensor(geometricmeanPredictor(xVal))).numpy())
 
-print('Base model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, baseModel.predict(xVal)).numpy())
-print('Optimized model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, optimizedModel.predict(xVal)).numpy())
+print('Base model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, model.baseModel.predict(xVal)).numpy())
+if model.optimizedModel:
+    print('Optimized model KL Loss', LSTMEmotionPredictor.kl_divergence_loss(yVal, model.optimizedModel.predict(xVal)).numpy())
 
 print('\n\nMSE loss first averaged over time then samples')
 print('Mean model mse Loss', LSTMEmotionPredictor.custom_mse(yVal,tf.convert_to_tensor(meanPredictor(xVal))).numpy())
 print('Geometric Mean model mse Loss', LSTMEmotionPredictor.custom_mse(yVal,tf.convert_to_tensor(geometricmeanPredictor(xVal))).numpy())
-print('Base model mse Loss', LSTMEmotionPredictor.custom_mse(yVal, baseModel.predict(xVal)).numpy())
-print('Optimized model mse Loss', LSTMEmotionPredictor.custom_mse(yVal, optimizedModel.predict(xVal)).numpy())
+print('Base model mse Loss', LSTMEmotionPredictor.custom_mse(yVal, model.baseModel.predict(xVal)).numpy())
+if model.optimizedModel:
+    print('Optimized model mse Loss', LSTMEmotionPredictor.custom_mse(yVal, model.optimizedModel.predict(xVal)).numpy())
 
 
 # %% plot KL_divergence vs time averaged over test points
 meanPredictorLoss = kl_div_averageAcrossTimestamps(yVal, tf.convert_to_tensor(meanPredictor(xVal)))
 geometricmeanPredictorLoss = kl_div_averageAcrossTimestamps(yVal, tf.convert_to_tensor(geometricmeanPredictor(xVal))) 
 
-baseModelLoss = kl_div_averageAcrossTimestamps(yVal, baseModel.predict(xVal))
-optimizedModelLoss = kl_div_averageAcrossTimestamps(yVal, optimizedModel.predict(xVal))
+baseModelLoss = kl_div_averageAcrossTimestamps(yVal, model.baseModel.predict(xVal))
+if model.optimizedModel:
+    optimizedModelLoss = kl_div_averageAcrossTimestamps(yVal, model.optimizedModel.predict(xVal))
 
 
 fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
@@ -580,7 +595,8 @@ fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
 axes.plot(y_time, meanPredictorLoss, label='Mean Predictor', color='black', linestyle='-', marker='o', markersize=3)
 axes.plot(y_time, geometricmeanPredictorLoss, label='Geometric Mean Predictor', color='green', linestyle='-', marker='o', markersize=3)
 axes.plot(y_time, baseModelLoss, label='Base Predictor (Trained with kl divergence)', color='red', linestyle='-', marker='o', markersize=3)
-axes.plot(y_time, optimizedModelLoss, label='Optimized Predictor (Trained with kl divergence)', color='blue', linestyle='-', marker='o', markersize=3)
+if model.optimizedModel:
+    axes.plot(y_time, optimizedModelLoss, label='Optimized Predictor (Trained with kl divergence)', color='blue', linestyle='-', marker='o', markersize=3)
 
 axes.set_xlabel('Time')
 axes.set_ylabel('KL Loss')
