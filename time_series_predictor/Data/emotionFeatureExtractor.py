@@ -5,14 +5,16 @@ import json
 import os
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import random
 
 
 class emotionFeatureExtractor:
-    def __init__(self, log_dir = '../Data/Data_Saves', segment_length=600, stride=600, target_freq='100ms'):
+    def __init__(self, log_dir = '../Data/Data_Saves', y_prediction_length = 600, x_segment_length=600, stride=600, target_freq='100ms'):
         self.log_dir = log_dir
-        self.segment_length = segment_length
+        self.x_segment_length = x_segment_length
         self.stride = stride
         self.target_freq = target_freq
+        self.y_prediction_length = y_prediction_length
 
 
     def read_emotion_logs(self):
@@ -105,94 +107,118 @@ class emotionFeatureExtractor:
             
 
         return scores_array
-    
-    def prepare_and_segment_data(self, resample_method = 'ewma'):
-        '''
-        Method #1 for training model:
-        Segments data so that only the previous 1 minute (600 readings) are used to make a guess for the next 1 minute
-        data_array should be an np.matrix of size ~100xmax(logfilelength)x7 (100 = #time series')
-        '''
-        
-        all_data = self.read_emotion_logs()
-        resampled_data = [self.resample_data(file_data, resample_method) for file_data in all_data]
-        
-        #for testing 3 lines below:
-        # num_files = len(resampled_data)
-        # num_features = resampled_data[0].shape[1]  # Number of emotion scores -- should be 7
-        # max_length = max(file_data.shape[0] for file_data in resampled_data) #maximum time series length
-        
+
+    def segment_data(self, data, resample_method):
         X, Y = [], []
-
-        for file_data in resampled_data:
-            #TODO: determine best way to split data when using timestamps and scores as input and change model
+        for file_data in data:
             if resample_method != 'times_scores':
-                for start in range(0, file_data.shape[0] - self.segment_length, self.stride): #increments of length 600(segment length), with the last 600 for the label
-                    end = start + self.segment_length
-                    if end + self.segment_length <= file_data.shape[0]:
+                for start in range(0, file_data.shape[0] - self.x_segment_length, self.stride):
+                    end = start + self.x_segment_length
+                    if end + self.y_prediction_length <= file_data.shape[0]:
                         X.append(file_data[start:end])
-                        Y.append(file_data[end:end + self.segment_length])
-                        #Note some of X and Y are going to be mostly 0's rather than vectors
-                        #X and Y should have size ~ # of minutes of data x600x7
+                        Y.append(file_data[end:end + self.y_prediction_length])
             else:
-                for start in range(0,int(np.ceil(file_data[-1,0])),self.stride//10):
-                    end = start + self.stride/10 #first 60 s of data
-                    if np.shape(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.stride/10)])[0]:
-                        
-                        #ensuring the Y layer will have at least 1 minute of data
-
+                for start in range(0, int(np.ceil(file_data[-1,0])), self.stride//10):
+                    end = start + self.x_segment_length/10
+                    if np.shape(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.y_prediction_length/10)])[0] > self.y_prediction_length: #TODO: Fix this
                         X.append(file_data[(file_data[:,0] >= start) & (file_data[:,0]<=end)])
-                        Y.append(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.stride/10)])
-        X = np.array(X)
-        Y = np.array(Y)
-        #for each X[i], the corresponding predicted label is Y[i]
-        #X.shape[0] ~ total number of minutes of data (slightly less)
-        #Some data gets unused (if the time series was not a whole number of minutes long)
-        #can be adjusted by changing stride to have overlapping segments
-        return X, Y
+                        Y.append(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.y_prediction_length/10)])
+        return np.array(X), np.array(Y) 
+        
+    def train_val_testing_split(self, data, split=[0.8, 0.1, 0.1], random_state=None):
+        n = len(data)
+        assert sum(split) == 1 and split[0] > 0 and split[1] >= 0 and split[2] > 0
+        #permute the data according to random_state
+        random.Random(random_state).shuffle(data)
+        #calculate length of each time series in terms of segment length
+        nSegments = np.array([(sample.shape[0]-self.y_prediction_length)//self.x_segment_length for sample in data])
+        cumNSegments = np.cumsum(nSegments) 
+        
+        # Splitting according to split variable
+        # take first split[0] for train, split[1] for val, split[2] for test
+        trainSegmentCount = cumNSegments[-1]*split[0]
+        valSegmentCount = cumNSegments[-1]*split[1]
+
+        #masks for train val test split
+        bTrain = cumNSegments < trainSegmentCount
+        bVal = (trainSegmentCount < cumNSegments) & (cumNSegments < trainSegmentCount + valSegmentCount)
+        bTest = ~(bTrain | bVal)
+
+        train_data = [data[i] for i in range(len(bTrain)) if bTrain[i]]
+        val_data = [data[i] for i in range(len(bVal)) if bVal[i]]
+        test_data = [data[i] for i in range(len(bTest)) if bTest[i]]
+
+        return train_data, val_data, test_data
     
-    
-
-    def train_val_testing_split(self,X,Y, split = [0.8,0.1,0.1], random_state = None):
-        n = X.shape[0]
-        #randomly select 80% for training, 10% for validation, 10% for testing
-        assert round(sum(split)) == 1 and split[0] > 0 and split [1] >= 0 and split[2] > 0
-
-        # First split to create training and temp sets
-        xTrain, xTemp, yTrain, yTemp = train_test_split(X, Y, test_size=split[1] + split[2], random_state= random_state)
-
-        # Calculate validation and test split size proportionally from the temp set
-        val_test_ratio = split[1] / (split[1] + split[2])
-
-        #split again
-        xVal, xTest, yVal, yTest = train_test_split(xTemp, yTemp, test_size=1-val_test_ratio + split[2], random_state= random_state)
-
-
-        return xTrain, yTrain, xVal, yVal, xTest, yTest
-    
-    def save_trainTestData(self, x_train, y_train, x_val, y_val, x_test, y_test, save_dir = '../Data/Data_Saves/Preprocessed', fName = ''):
-        # Save each array to a file
-        np.save(os.path.join(save_dir, fName + '_x_train.npy'), x_train)
-        np.save(os.path.join(save_dir, fName + '_y_train.npy'), y_train)
-        np.save(os.path.join(save_dir, fName + '_x_val.npy'), x_val)
-        np.save(os.path.join(save_dir, fName + '_y_val.npy'), y_val)
-        np.save(os.path.join(save_dir, fName + '_x_test.npy'), x_test)
-        np.save(os.path.join(save_dir, fName + '_y_test.npy'), y_test)
-    
-    def save_PreprocessedData(self, X, Y, save_dir = '../Data/Data_Saves/Preprocessed' , fName = ''):
-        # Save each array to a file
-        np.save(os.path.join(save_dir, fName + '_x.npy'), X)
-        np.save(os.path.join(save_dir, fName + '_y.npy'), Y)
-
-    def update_dataSaves(self):
-        ''' 
-        Function to read the json data files and update the saved numpys for XData and YData
-        To be used mainly for saving data to test preprocessing methods
+    def load_from_data_saves(self, resample_method='ewma'):
         '''
-        for filterMethod in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
-            XData,YData = self.prepare_and_segment_data(resample_method=filterMethod)
-            self.save_PreprocessedData(X=XData,Y=YData, fName=filterMethod, save_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves/Preprocessed'))
+        method to load data from pre-saved folder
+        '''
+        save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Data/Data_Saves/Preprocessed')
+
+        # Load the segmented data
+        X_train = np.load(os.path.join(save_dir, f'{resample_method}_X_train.npy'), allow_pickle=True)
+        Y_train = np.load(os.path.join(save_dir, f'{resample_method}_Y_train.npy'), allow_pickle=True)
+        X_val = np.load(os.path.join(save_dir, f'{resample_method}_X_val.npy'), allow_pickle=True)
+        Y_val = np.load(os.path.join(save_dir, f'{resample_method}_Y_val.npy'), allow_pickle=True)
+        X_test = np.load(os.path.join(save_dir, f'{resample_method}_X_test.npy'), allow_pickle=True)
+        Y_test = np.load(os.path.join(save_dir, f'{resample_method}_Y_test.npy'), allow_pickle=True)
+
+        return X_train, Y_train, X_val, Y_val, X_test, Y_test
+
+
+
+    def update_dataSaves(self, split = [0.8, 0.1, 0.1], random_state=np.random.randint(0,2**30)):
+        all_data = self.read_emotion_logs()
+        #obtains a train val and testing split
+        #should be such that all the data is saved in the same split random state
+
+        for filterMethod in ['ewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
+            #data imputation
+            resampled_data = [self.resample_data(file_data, filterMethod) for file_data in all_data]
+            resampled_train_data, resampled_val_data, resampled_test_data = self.train_val_testing_split(data = resampled_data, random_state=random_state, split=split)
+
+            #then segments the data correctly according to the stride required
+            X_train, Y_train = self.segment_data(resampled_train_data, filterMethod)
+            X_val, Y_val = self.segment_data(resampled_val_data, filterMethod)
+            X_test, Y_test = self.segment_data(resampled_test_data, filterMethod)
+
+            save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Data/Data_Saves/Preprocessed')
+            # Save the segmented data
+            np.save(os.path.join(save_dir, f'{filterMethod}_X_train.npy'), X_train)
+            np.save(os.path.join(save_dir, f'{filterMethod}_Y_train.npy'), Y_train)
+            np.save(os.path.join(save_dir, f'{filterMethod}_X_val.npy'), X_val)
+            np.save(os.path.join(save_dir, f'{filterMethod}_Y_val.npy'), Y_val)
+            np.save(os.path.join(save_dir, f'{filterMethod}_X_test.npy'), X_test)
+            np.save(os.path.join(save_dir, f'{filterMethod}_Y_test.npy'), Y_test)
+    
+    def get_data_split(self, resample_method = 'ewmainterp', split = [0.8, 0.1, 0.1], random_state=np.random.randint(0,2**30)):
+        '''
+        Similar to updata_dataSaves
+        Just returns to user the requested data while processing it in real time - slower
+        '''
+
+        all_data = self.read_emotion_logs()
+        #obtains a train val and testing split
+        #should be such that all the data is saved in the same split random state
+
+    
+        #data imputation
+        resampled_data = [self.resample_data(file_data, resample_method) for file_data in all_data]
+        resampled_train_data, resampled_val_data, resampled_test_data = self.train_val_testing_split(data=resampled_data, random_state=random_state, split=split)
+
+        #then segments the data correctly according to the stride required
+        X_train, Y_train = self.segment_data(resampled_train_data, resample_method)
+        X_val, Y_val = self.segment_data(resampled_val_data, resample_method)
+        X_test, Y_test = self.segment_data(resampled_test_data, resample_method)
+
+        return X_train, Y_train, X_val, Y_val, X_test, Y_test
+
+
 
     def compareFilterMethods(self, filterMethodToComp = ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth'], iFile = -1):
+        #Function to be used to view the results of different data imputation methods
+        
         all_data = self.read_emotion_logs()
         times_scores_data = [self.resample_data(file_data, 'times_scores') for file_data in all_data]
         colors = plt.cm.rainbow(np.linspace(0, 1, len(filterMethodToComp)+1))
@@ -241,23 +267,51 @@ class emotionFeatureExtractor:
         plt.show()
 
 
-        
-    
-    #TODO: write feature extraction for padding and masking method
-
-extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
-#%% Comparing filter methods
-# %matplotlib widget
-# # extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
-# # extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
-# # extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
-# extractor.compareFilterMethods()
-# extractor.compareFilterMethods(['ewma', 'interpolation', 'interp_ewmaSmooth','ewmainterp'], iFile = 68)
+# extractor = emotionFeatureExtractor(log_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'Data/Data_Saves'))
+# #%% Comparing filter methods
+# # %matplotlib widget
+# # # extractor.compareFilterMethods(['ewma', 'ewmainterp'], iFile = 65)
+# # # extractor.compareFilterMethods(['interpolation', 'interp_ewmaSmooth'], iFile = 65)
+# # # extractor.compareFilterMethods(['ewma', 'ewmainterp', 'interpolation'], iFile = 10)
+# # extractor.compareFilterMethods()
+# # extractor.compareFilterMethods(['ewma', 'interpolation', 'interp_ewmaSmooth','ewmainterp'], iFile = 68)
 
 
-# extractor.update_dataSaves()
-# for meth in ['ewma', 'binnedewma', 'interpolation', 'ewmainterp', 'interp_ewmaSmooth', 'times_scores']:
-#     XData,YData = extractor.prepare_and_segment_data(resample_method=meth)
+# # extractor.update_dataSaves()
+# xTr,yTr,xVal,yVal,xTest,yTest = extractor.get_data_split(resample_method='ewmainterp', random_state=5)
+# xTr2,yTr2,xVal2,yVal2,xTest2,yTest2 = extractor.get_data_split(resample_method='ewma', random_state=5)
 
-# xTr,yTr,xV,yV,xTest,yTest = extractor.train_val_testing_split(XData,YData, random_state=5)
+
+# fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
+# fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
+
+
+# # %%
+# iSample = np.random.randint(0,xTest.shape[0])
+# num_features = 7
+# fig, axes = plt.subplots(num_features, 1, figsize=(10, 20), sharex=True, sharey=True)
+# fig.suptitle(f'xTest Features vs Time per Resample Method, iSample {iSample}')
+# colors = plt.cm.rainbow(np.linspace(0, 1, 2))
+
+# resampled_data_time = np.arange(0, 0.1 * np.shape(xTest)[1], 0.1)
+# resampled_data_time = resampled_data_time[:np.shape(xTest)[1]]
+
+# for i in range(num_features):
+#     axes[i].plot(resampled_data_time, xTest[iSample, :, i], label='ewmainterp', color=colors[0], linestyle='--', marker = 'o', markersize=2)
+#     axes[i].plot(resampled_data_time, xTest2[iSample, :, i], label='ewma', color=colors[1], linestyle='--', marker = 'o', markersize=2)
+
+
+# #label subplots
+# for i in range(num_features):       
+#     axes[i].set_ylabel(f'Feature {i + 1}')
+#     axes[i].legend()
+#     axes[i].grid(True)
+
+
+# axes[-1].set_xlabel('Time')
+# plt.tight_layout()
+# plt.subplots_adjust(top=0.95)  # Adjust title position
+# axes[-1].set_xlim(0, 60)
+# axes[-1].set_ylim(0,1)
+# plt.show()
 # %%
