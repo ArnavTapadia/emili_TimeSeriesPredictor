@@ -1,5 +1,9 @@
 venv/
-tts_audio/
-transcript/
-snapshot/
-.DS_Store
+tts_audio/*
+transcript/*
+snapshot/*
+Dataset prep/*
+paz/*
+__pycache__/*
+
+test.py
