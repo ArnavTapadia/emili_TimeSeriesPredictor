@@ -94,7 +94,7 @@ class LSTMEmotionPredictor:
         epsilon = 1e-7
 
         # Compute KL divergence for each timestamp
-        kl_div = tf.reduce_sum(y_true * (tf.math.log(y_true + epsilon) - tf.math.log(y_pred + epsilon)), axis=-1)
+        kl_div = tf.reduce_sum(y_true * (tf.math.log(y_true + epsilon) - tf.math.log(y_pred + epsilon)), axis=-1) #WORNG
 
         # Average over all timestamps and batches
         return tf.reduce_mean(kl_div)
