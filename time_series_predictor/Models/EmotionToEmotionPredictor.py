@@ -532,22 +532,6 @@ def geometricmeanPredictor(x):
     
     return result
 
-def kl_div_averageAcrossTimestamps(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
-    assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
-
-    # Cast tensors to the same type
-    y_true = tf.cast(y_true, dtype=tf.float32)
-    y_pred = tf.cast(y_pred, dtype=tf.float32)
-
-    # Add a small epsilon to avoid division by zero or log of zero
-    epsilon = 1e-7
-
-    # Compute KL divergence for each timestamp
-    kl_div = tf.reduce_sum(y_true * (tf.math.log(y_true + epsilon) - tf.math.log(y_pred + epsilon)), axis=-1)
-
-    # Average over all samples
-    return tf.reduce_mean(kl_div, axis = 0) #should return a 600x1 vector
-
 def mse_acrossTimestamps(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
     assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
 
@@ -581,12 +565,29 @@ if model.optimizedModel:
 
 
 # %% plot KL_divergence vs time averaged over test points
-meanPredictorLoss = kl_div_averageAcrossTimestamps(yVal, tf.convert_to_tensor(meanPredictor(xVal)))
-geometricmeanPredictorLoss = kl_div_averageAcrossTimestamps(yVal, tf.convert_to_tensor(geometricmeanPredictor(xVal))) 
+    
+def kl_div_for_timesteps(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
+    assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
 
-baseModelLoss = kl_div_averageAcrossTimestamps(yVal, model.baseModel.predict(xVal))
+    # Cast tensors to the same type
+    y_true = tf.cast(y_true, dtype=tf.float32)
+    y_pred = tf.cast(y_pred, dtype=tf.float32)
+
+    # Add a small epsilon to avoid division by zero or log of zero
+    epsilon = 1e-7
+
+    # Compute KL divergence for each timestamp
+    kl_div = tf.reduce_sum(y_true * (tf.math.log(y_true + epsilon) - tf.math.log(y_pred + epsilon)), axis=-1)
+
+    # Average over all samples
+    return tf.reduce_mean(kl_div, axis = 0) #should return a 600x1 vector
+
+meanPredictorLoss = kl_div_for_timesteps(yVal, tf.convert_to_tensor(meanPredictor(xVal)))
+geometricmeanPredictorLoss = kl_div_for_timesteps(yVal, tf.convert_to_tensor(geometricmeanPredictor(xVal))) 
+
+baseModelLoss = kl_div_for_timesteps(yVal, model.baseModel.predict(xVal))
 if model.optimizedModel:
-    optimizedModelLoss = kl_div_averageAcrossTimestamps(yVal, model.optimizedModel.predict(xVal))
+    optimizedModelLoss = kl_div_for_timesteps(yVal, model.optimizedModel.predict(xVal))
 
 
 fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
