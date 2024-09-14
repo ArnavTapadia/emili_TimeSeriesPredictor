@@ -148,7 +148,8 @@ class LSTMEmotionPredictor:
         # Add intermediate TimeDistributed Dense layers
         for _ in range(nTimeDistributedLayers):
             model.add(TimeDistributed(Dense(nIntermediateDenseUnits, activation=AddTimeDistributedActivation)))
-
+        # model.add(TimeDistributed(Dense(1, activation = 'relu'))) #compressing all lstm_units hidden states into a 600x1
+        model.add(Dense(300)) #fully connected layer
         # Add final TimeDistributed Dense layer
         model.add(TimeDistributed(Dense(7, activation='softmax')))
 
@@ -590,7 +591,7 @@ if model.optimizedModel:
     optimizedModelLoss = kl_div_for_timesteps(yVal, model.optimizedModel.predict(xVal))
 
 
-fig, axes = plt.subplots(1, 1, figsize=(15, 7), sharex=True, sharey=True)
+fig, axes = plt.subplots(1, 1, figsize=(8, 3), sharex=True, sharey=True)
 fig.suptitle('KL Divergence vs Time Averaged Across Samples in Validation Set')
 
 axes.plot(y_time, meanPredictorLoss, label='Mean Predictor', color='black', linestyle='-', marker='o', markersize=3)
@@ -605,6 +606,6 @@ plt.tight_layout()
 axes.grid(True)
 axes.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.subplots_adjust(top=0.95, right=0.8)  # Adjust title position and make room for legend
-axes.set_xlim(0, 60)
+axes.set_xlim(60, 120)
 plt.show()
 # %%
