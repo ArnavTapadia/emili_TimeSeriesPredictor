@@ -8,7 +8,7 @@ from time_series_predictor.Data.emotionFeatureExtractor import emotionFeatureExt
 #Modeling imports
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, TimeDistributed
+from tensorflow.keras.layers import LSTM, Dense, TimeDistributed, Conv1D
 from tensorflow.keras.regularizers import l1, l2
 #hyperparam optimization imports
 from skopt import BayesSearchCV
@@ -85,7 +85,7 @@ class LSTMEmotionPredictor:
         return tf.reduce_mean(mse_kl_div) #average across samples
     
     @staticmethod
-    def kl_divergence_loss(y_true, y_pred): #only really used for bayesian optimization since regular LSTM uses normal keras function
+    def kl_divergence_loss(y_true, y_pred):
         assert len(y_true.shape) == 3 and len(y_pred.shape) == 3
         # Cast tensors to the same type
         y_true = tf.cast(y_true, dtype=tf.float32)
@@ -141,6 +141,7 @@ class LSTMEmotionPredictor:
 
         model = Sequential()
         model.add(LSTM(lstm_units, input_shape=self.input_shape, return_sequences=True))
+
         # Add LSTM layers
         for _ in range(nAddLSTMLayers):
                 model.add(LSTM(lstm_units, return_sequences=True))
@@ -149,12 +150,19 @@ class LSTMEmotionPredictor:
         for _ in range(nTimeDistributedLayers):
             model.add(TimeDistributed(Dense(nIntermediateDenseUnits, activation=AddTimeDistributedActivation)))
         # model.add(TimeDistributed(Dense(1, activation = 'relu'))) #compressing all lstm_units hidden states into a 600x1
-        model.add(Dense(300)) #fully connected layer
+            
+        
+        # model.add(Dense(300)) #fully connected layer
+        model.add(Conv1D(filters=128, kernel_size=3, activation='relu', padding = 'same'))  # Capture relationships across time steps
+        model.add(TimeDistributed(Dense(300)))
+
+        # model.add(Dense(7, activation = 'softmax')) #fully connected layer
+            
         # Add final TimeDistributed Dense layer
         model.add(TimeDistributed(Dense(7, activation='softmax')))
 
         # Compile the model
-        model.compile(loss=self.lossFunc,
+        model.compile(loss=LSTMEmotionPredictor.kl_divergence_loss,
                     optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
                     metrics=[LSTMEmotionPredictor.kl_divergence_loss])
         
