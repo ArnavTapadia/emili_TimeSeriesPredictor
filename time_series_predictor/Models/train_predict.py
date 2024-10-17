@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 
 '''
 Functions for training and inference of the models
@@ -138,8 +139,34 @@ def recursive_predict(model, input_data, nRecursive_predictions):
             predictions.append(next_pred)  # Store prediction
 
         # Shift the input sequence up by 1
-        current_input = current_input.roll(shifts=-next_pred.shape[1], dims=1) #TODO: Only works with a single step prediction, not multiple - to fix
+        current_input = current_input.roll(shifts=-next_pred.shape[1], dims=1)
         # Replace the last timestep with the new prediction
         current_input[:, -next_pred.shape[1]:, :] = next_pred
 
     return torch.cat(predictions, dim=1)
+
+def calculate_mse_loss(predictions, true_values):
+    """
+    Calculates the MSE loss over a set of predictions and true values.
+
+    Parameters:
+    - predictions: Predicted values (numpy array or PyTorch tensor) of shape (n_samples, timesteps, features).
+    - true_values: True values (numpy array or PyTorch tensor) of the same shape as predictions.
+
+    Returns:
+    - mse_loss: The MSE loss calculated over all samples.
+    """
+    # Convert inputs to PyTorch tensors if they are not already
+    if isinstance(predictions, np.ndarray):
+        predictions = torch.from_numpy(predictions).float()
+    if isinstance(true_values, np.ndarray):
+        true_values = torch.from_numpy(true_values).float()
+    
+    # Ensure predictions and true_values are of the same shape
+    assert predictions.shape == true_values.shape, "Predictions and true values must have the same shape."
+    
+    # Calculate MSE loss using PyTorch's MSELoss
+    criterion = nn.MSELoss()
+    mse_loss = criterion(predictions, true_values).item()
+
+    return mse_loss
