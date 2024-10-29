@@ -40,11 +40,12 @@ def train(model, xTrain, yTrain, xVal=None, yVal=None, epochs=10, batch_size=32,
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # History to store loss per epoch
-    training_loss_history = []
     validation_loss_history = []
+    training_loss_history_per_sample = []
 
     # Training loop
     for epoch in range(epochs):
+        training_loss_history = []
         model.train()  # Set model to training mode
         epoch_loss = 0.0
         
@@ -73,6 +74,7 @@ def train(model, xTrain, yTrain, xVal=None, yVal=None, epochs=10, batch_size=32,
             optimizer.step()
             
             epoch_loss += loss.item()
+            training_loss_history_per_sample.append(epoch_loss/(i+1)) #loss divided by number of samples it has trained on
 
         # Average loss for the epoch
         training_loss_history.append(epoch_loss / len(xTrain))
@@ -91,9 +93,9 @@ def train(model, xTrain, yTrain, xVal=None, yVal=None, epochs=10, batch_size=32,
             print(f'Epoch {epoch+1}/{epochs}, Training Loss: {epoch_loss/len(xTrain):.4f}')
 
     if xVal is not None and yVal is not None:
-        return training_loss_history, validation_loss_history
+        return training_loss_history, validation_loss_history, training_loss_history_per_sample
     else:
-        return training_loss_history
+        return training_loss_history, training_loss_history_per_sample
 
 
 def predict(model, input_data):
