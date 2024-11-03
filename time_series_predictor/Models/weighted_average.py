@@ -38,7 +38,7 @@ class WeightedAverageModel(nn.Module):
         return weighted_average
     
 class MultiStepFullyConnectedNN(nn.Module):
-    def __init__(self, timesteps, features, hidden_units=64, forecast_length=1):
+    def __init__(self, timesteps, features, hidden_units=64, forecast_length=1, activation = 'linear'):
         """
         Fully Connected Neural Network for multi-step time series prediction.
 
@@ -53,6 +53,7 @@ class MultiStepFullyConnectedNN(nn.Module):
         self.timesteps = timesteps
         self.features = features
         self.forecast_length = forecast_length
+        self.activation = activation
 
         # Calculate input size based on the number of timesteps and features
         self.input_size = timesteps * features
