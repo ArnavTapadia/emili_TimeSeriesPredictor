@@ -83,7 +83,7 @@ LSTMUnivariateMultiStep: predicts forecast_length timesteps into the future in o
 '''
 
 class LSTMUnivariateMultiStep(nn.Module):
-    def __init__(self, timesteps, features, lstm_units=64, hidden_fc_layers = 0, hidden_units = 128, forecast_length=1, nn_activation = 'linear'):
+    def __init__(self, timesteps, features, lstm_units=64, hidden_fc_layers=0, hidden_units=128, forecast_length=1, nn_activation='linear'):
         """
         LSTM Model for univariate time series with multi-step one-shot prediction.
 
@@ -102,37 +102,43 @@ class LSTMUnivariateMultiStep(nn.Module):
         self.features = features
         self.lstm_units = lstm_units
         self.hidden_units = hidden_units
-        assert hidden_fc_layers == 0 or hidden_fc_layers < 3 #only supports 0 or 1 right now
+        assert hidden_fc_layers == 0 or hidden_fc_layers < 3  # only supports 0 or 1 right now
         self.hidden_fc_layers = hidden_fc_layers
-        assert nn_activation == 'relu' or nn_activation == 'linear' #only supports linear or relu now
+        assert nn_activation == 'relu' or nn_activation == 'linear'  # only supports linear or relu now
         self.nn_activation = nn_activation
         self.forecast_length = forecast_length  # Number of timesteps to predict
 
         # LSTM layer: input_size is features, hidden_size is lstm_units
         self.lstm = nn.LSTM(input_size=features, hidden_size=lstm_units, batch_first=True)
 
-        # Fully connected layer: Maps LSTM output to future timestep predictions
-        # Instead of just mapping to features, we now map to forecast_length * features
+        # Fully connected layers
         self.fc1 = nn.Linear(lstm_units, hidden_units)
-        self.fc2 = nn.Linear(hidden_units,hidden_units)
+        self.fc2 = nn.Linear(hidden_units, hidden_units)
         if hidden_fc_layers > 0:
             self.output = nn.Linear(hidden_units, forecast_length * features)
         else:
             self.output = nn.Linear(lstm_units, forecast_length * features)
 
-    def forward(self, x):
+    def forward(self, x, return_activations=False):
         """
         Forward pass of the model.
-        
+
         Parameters:
         - x (torch.Tensor): Input tensor of shape (batch_size, timesteps, features).
-        
+        - return_activations (bool): If True, return hidden state activations.
+
         Returns:
         - torch.Tensor: Predicted output for the next `forecast_length` timesteps,
                         shape (batch_size, forecast_length, features).
+        - activations (optional): If `return_activations` is True, returns hidden state activations of shape 
+                                  (batch_size, timesteps, lstm_units).
         """
         # Pass input through LSTM layer
         lstm_out, _ = self.lstm(x)  # lstm_out shape: (batch_size, timesteps, lstm_units)
+
+        # If requested, return activations (i.e., hidden states for each LSTM unit across timesteps)
+        if return_activations:
+            return lstm_out
 
         # Use the output from the last timestep of the LSTM
         last_timestep_output = lstm_out[:, -1, :]  # shape: (batch_size, lstm_units)
@@ -144,7 +150,6 @@ class LSTMUnivariateMultiStep(nn.Module):
             hidden_out = F.relu(self.fc2(hidden_out1))
         else:
             hidden_out = last_timestep_output
-        
 
         # Pass through the fully connected layer to predict the full forecast
         if self.nn_activation == 'relu':
