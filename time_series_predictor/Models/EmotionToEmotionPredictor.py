@@ -153,7 +153,7 @@ class LSTMEmotionPredictor:
             
         
         # model.add(Dense(300)) #fully connected layer
-        model.add(Conv1D(filters=128, kernel_size=3, activation='relu', padding = 'same'))  # Capture relationships across time steps
+        model.add(Conv1D(filters=128, kernel_size=100, activation='relu', padding = 'same'))  # Capture relationships across time steps
         model.add(TimeDistributed(Dense(300)))
 
         # model.add(Dense(7, activation = 'softmax')) #fully connected layer
