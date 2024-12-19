@@ -9,12 +9,12 @@ import random
 
 
 class emotionFeatureExtractor:
-    def __init__(self, log_dir = '../Data/Data_Saves', y_prediction_length = 600, x_segment_length=600, stride=600, target_freq='100ms'):
+    def __init__(self, log_dir = '../Data/Data_Saves', nForecastHorizon = 600, nLags=600, stride=600, target_freq='100ms'):
         self.log_dir = log_dir
-        self.x_segment_length = x_segment_length
+        self.nLags = nLags
         self.stride = stride
         self.target_freq = target_freq
-        self.y_prediction_length = y_prediction_length
+        self.nForecastHorizon = nForecastHorizon
 
 
     def read_emotion_logs(self):
@@ -112,17 +112,17 @@ class emotionFeatureExtractor:
         X, Y = [], []
         for file_data in data:
             if resample_method != 'times_scores':
-                for start in range(0, file_data.shape[0] - self.x_segment_length, self.stride):
-                    end = start + self.x_segment_length
-                    if end + self.y_prediction_length <= file_data.shape[0]:
+                for start in range(0, file_data.shape[0] - self.nLags, self.stride):
+                    end = start + self.nLags
+                    if end + self.nForecastHorizon <= file_data.shape[0]:
                         X.append(file_data[start:end])
-                        Y.append(file_data[end:end + self.y_prediction_length])
+                        Y.append(file_data[end:end + self.nForecastHorizon])
             else:
                 for start in range(0, int(np.ceil(file_data[-1,0])), self.stride//10):
-                    end = start + self.x_segment_length/10
-                    if np.shape(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.y_prediction_length/10)])[0] > self.y_prediction_length: #TODO: Fix this
+                    end = start + self.nLags/10
+                    if np.shape(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.nForecastHorizon/10)])[0] > self.nForecastHorizon: #TODO: Fix this
                         X.append(file_data[(file_data[:,0] >= start) & (file_data[:,0]<=end)])
-                        Y.append(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.y_prediction_length/10)])
+                        Y.append(file_data[(file_data[:,0] >= end) & (file_data[:,0]<=end+self.nForecastHorizon/10)])
         return np.array(X), np.array(Y) 
         
     def train_val_testing_split(self, data, split=[0.8, 0.1, 0.1], random_state=None):
@@ -131,7 +131,7 @@ class emotionFeatureExtractor:
         #permute the data according to random_state
         random.Random(random_state).shuffle(data)
         #calculate length of each time series in terms of segment length
-        nSegments = np.array([(sample.shape[0]-self.y_prediction_length)//self.x_segment_length for sample in data])
+        nSegments = np.array([(sample.shape[0]-self.nForecastHorizon)//self.nLags for sample in data])
         cumNSegments = np.cumsum(nSegments) 
         
         # Splitting according to split variable
@@ -149,6 +149,28 @@ class emotionFeatureExtractor:
         test_data = [data[i] for i in range(len(bTest)) if bTest[i]]
 
         return train_data, val_data, test_data
+    
+    def train_test_split(self, data, split=[0.8, 0.2], random_state=None):
+        n = len(data)
+        assert sum(split) == 1 and split[0] > 0 and split[1] >= 0
+        #permute the data according to random_state
+        random.Random(random_state).shuffle(data)
+        #calculate length of each time series in terms of segment length
+        nSegments = np.array([(sample.shape[0]-self.nForecastHorizon)//self.nLags for sample in data])
+        cumNSegments = np.cumsum(nSegments) 
+        
+        # Splitting according to split variable
+        # take first split[0] for train, split[1] for val, split[2] for test
+        trainSegmentCount = cumNSegments[-1]*split[0]
+
+        #masks for train val test split
+        bTrain = cumNSegments < trainSegmentCount
+        bTest = ~bTrain
+
+        train_data = [data[i] for i in range(len(bTrain)) if bTrain[i]]
+        test_data = [data[i] for i in range(len(bTest)) if bTest[i]]
+
+        return train_data, test_data
     
     def load_from_data_saves(self, resample_method='ewma'):
         '''
