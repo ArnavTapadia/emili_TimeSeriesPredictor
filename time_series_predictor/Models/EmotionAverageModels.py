@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class WeightedAverageModel(nn.Module):
-    def __init__(self, timesteps, features):
+    def __init__(self, timesteps, features, forecast_length):
         """
         Weighted Average Model where the weights across timesteps are learned.
         Essentially a multilayer perceptron/linear neural network
@@ -15,7 +15,9 @@ class WeightedAverageModel(nn.Module):
         super(WeightedAverageModel, self).__init__()
         
         # Trainable weights for the timesteps
-        self.weights = nn.Parameter(torch.randn(timesteps))  # Initialized randomly
+        # self.weights = nn.Parameter(torch.randn(timesteps))  # Initialized randomly
+        self.weights = nn.Parameter(torch.tensor([1/timesteps]).repeat(timesteps))
+        self.forecast_length = forecast_length
     
     def forward(self, x):
         """
@@ -25,10 +27,10 @@ class WeightedAverageModel(nn.Module):
         - x (torch.Tensor): Input tensor of shape (num_samples, timesteps, features).
         
         Returns:
-        - torch.Tensor: Weighted average tensor of shape (num_samples, 1, features).
+        - torch.Tensor: Weighted average tensor of shape (num_samples, self.forecast_length, features).
         """
         # Apply softmax to ensure the weights sum to 1 and are positive
-        softmax_weights = F.softmax(self.weights, dim=0)  # Shape (timesteps,)
+        softmax_weights = self.weights/torch.sum(self.weights)  #F.softmax(self.weights, dim=0)  # Shape (timesteps,)
         
         # Reshape weights to (1, timesteps, 1) to broadcast them across the batch and features
         weighted_input = x * softmax_weights.view(1, -1, 1)
@@ -36,7 +38,7 @@ class WeightedAverageModel(nn.Module):
         # Sum across the timesteps to get a weighted average
         weighted_average = torch.sum(weighted_input, dim=1, keepdim=True)  # Shape (num_samples, 1, features)
         
-        return weighted_average
+        return weighted_average.expand(-1,self.forecast_length,-1)
     
 class MultiStepFullyConnectedNN(nn.Module):
     def __init__(self, timesteps, features, hidden_units=64, forecast_length=1, activation = 'linear'):
@@ -86,7 +88,23 @@ class MultiStepFullyConnectedNN(nn.Module):
         # Reshape to match the output shape (batch_size, forecast_length, features)
         output = x.view(-1, self.forecast_length, self.features)
         return output
+
+class lastObsCarriedForward(nn.Module):
+    def __init__(self, timesteps, features, forecast_length=1):
+        super(lastObsCarriedForward, self).__init__()
+        self.forecast_length = forecast_length
     
+    def forward(self, x):
+        return x[:,[-1],:].expand(-1,self.forecast_length,-1)
+    
+class averageOverTimesteps(nn.Module):
+    def __init__(self, timesteps, features, forecast_length=1):
+        super(averageOverTimesteps, self).__init__()
+        self.forecast_length = forecast_length
+    
+    def forward(self, x):
+        return torch.mean(x,dim=1,keepdim=True).expand(-1,self.forecast_length,-1)
+
 
 class LSTMMultivariate(nn.Module):
     def __init__(self, timesteps, features, lstm_units=64, hidden_fc_layers=0, hidden_units=128, forecast_length=1, nn_activation='linear'):
